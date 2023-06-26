@@ -631,44 +631,6 @@ with tab3:
             fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
             fig.update_layout(yaxis_title="총질소")  # y축 레이블 설정
             st.plotly_chart(fig)
-    hospital_data = {
-        '위치': ['한국1', '한국2', '사우디3', '사우디4', '사우디5'],
-        '위도': [35.1, 34.9, 26.3, 28.6, 25.9],
-        '경도': [129.1, 129.2, 56.1, 51.3, 55.2],
-        '수온': [25.5, 26.0, 25.8, 25.9, 26.2],
-        'pH': [7.2, 7.5, 7.3, 7.1, 7.4],
-        '염분': [35, 38, 40, 42, 39],
-        '산도': [6.8, 7.1, 6.9, 6.7, 7.0]
-}
-
-    hospital_list = pd.DataFrame(hospital_data)
-
-    def main():
-        m = folium.Map(location=[35.15, 129.10], zoom_start=2)
-        for idx, row in hospital_list.iterrows():
-            html = """<!DOCTYPE html>
-            <html>
-                <table style="height: 156px; width: 330px;"> <tbody> <tr>
-                <td style="background-color: #2A799C;">
-                <div style="color: #ffffff;text-align:center;">위치</div></td>
-                <td style="width: 230px;background-color: #C5DCE7;">{}</td>""".format(row['위치'])+"""</tr>
-                <tr><td style="background-color: #2A799C;">
-                <div style="color: #ffffff;text-align:center;">수온</div></td>
-                <td style="width: 230px;background-color: #C5DCE7;">{}</td>""".format(row['수온'])+"""</tr>
-                <tr><td style="background-color: #2A799C;">
-                <div style="color: #ffffff;text-align:center;">pH</div></td>
-                <td style="width: 230px;background-color: #C5DCE7;">{}</td>""".format(row['pH'])+"""</tr>
-                </tbody> </table> </html> """
-
-            iframe = branca.element.IFrame(html=html, width=350, height=150)
-            popup_text = folium.Popup(iframe, parse_html=True)
-            icon = folium.Icon(color="blue")
-            folium.Marker(location=[row['위도'], row['경도']],
-                          popup=popup_text, tooltip=row['위치'], icon=icon).add_to(m)
-        folium_static(m)
-
-    if __name__ == "__main__":
-        main()
     water = pd.read_csv('인천수질데이터.csv', encoding='cp949')
     water1 = pd.read_csv('수질서비스.csv', encoding='cp949')
     user_input = st.text_input("지역명을 입력하세요.")
