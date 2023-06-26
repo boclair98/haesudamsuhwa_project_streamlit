@@ -12,3 +12,4 @@ seaborn
 joblib
 requests
 Pillow
+sklearn
