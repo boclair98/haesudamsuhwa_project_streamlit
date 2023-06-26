@@ -88,7 +88,7 @@ with tab1:
     input_e = seawater.loc[seawater['관측일자'] == date_time, ['총인', '화학적산소요구량', '총질소', '탁도']]
     
     # 예측 모델 불러오기
-    pressure_model = joblib.load('LR_pressure.pkl') # '1차 인입압력' 예측 모델
+    pressure_model = joblib.load('random_model.pkl') # '1차 인입압력' 예측 모델
     elec_model = joblib.load('RF_elec.pkl') # '전체 전력량' 예측 모델
     
     ## ----- 예측값 표시 -----
