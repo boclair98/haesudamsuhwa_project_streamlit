@@ -20,12 +20,24 @@ import plotly.express as px
 import joblib
 import requests
 from dateutil.relativedelta import relativedelta
-from streamlit_extras.metric_cards import style_metric_cards
 import plotly.graph_objects as go
 from PIL import Image
 st.set_page_config(page_title='해수 담수화 RO 플랜트',layout='wide')
 tab1,tab2,tab3 = st.tabs(['실시간 대시보드','생산관리','수질분석'])
 with tab1:
+    def style_metric_cards(
+        background_color: str = "#FFF",
+        border_size_px: int = 1,
+        border_color: str = "#CCC",
+        border_radius_px: int = 5,
+        border_left_color: str = "#9AD8E1",  # Update the border_left_color to black
+        box_shadow: bool = True,
+    ):
+        box_shadow_str = (
+            "box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15) !important;"
+            if box_shadow
+            else "box-shadow: none !important;"
+        )
     st.title("해수담수화 플랜트 A")
 
 
@@ -323,6 +335,19 @@ with tab1:
     
     
 with tab2:
+    def style_metric_cards(
+        background_color: str = "#FFF",
+        border_size_px: int = 1,
+        border_color: str = "#CCC",
+        border_radius_px: int = 5,
+        border_left_color: str = "#9AD8E1",  # Update the border_left_color to black
+        box_shadow: bool = True,
+    ):
+        box_shadow_str = (
+            "box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15) !important;"
+            if box_shadow
+            else "box-shadow: none !important;"
+        )
     st.write('### 생산관리')
     data = pd.read_csv('RO공정데이터.csv', encoding='cp949')
     data.dropna(axis=0, inplace=True)
