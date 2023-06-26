@@ -9,7 +9,6 @@ streamlit
 branca
 plotly
 seaborn
-calendar
 joblib
 requests
 dateutil
