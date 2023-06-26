@@ -12,4 +12,4 @@ seaborn
 joblib
 requests
 Pillow
-sklearn
+scikit-learn
