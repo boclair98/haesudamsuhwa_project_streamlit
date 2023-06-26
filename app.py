@@ -19,7 +19,6 @@ import calendar
 import plotly.express as px
 import joblib
 import requests
-from streamlit_folium import folium_static
 from dateutil.relativedelta import relativedelta
 from streamlit_extras.metric_cards import style_metric_cards
 import plotly.graph_objects as go
