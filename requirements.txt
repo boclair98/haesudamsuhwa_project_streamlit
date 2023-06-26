@@ -11,5 +11,4 @@ plotly
 seaborn
 joblib
 requests
-dateutil
 Pillow
