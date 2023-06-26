@@ -12,6 +12,7 @@ import folium
 import branca
 from geopy.geocoders import Nominatim
 import ssl
+import sklearn
 from urllib.request import urlopen
 import matplotlib.pyplot as plt
 import seaborn as sns
