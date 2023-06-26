@@ -18,7 +18,6 @@ import seaborn as sns
 import calendar
 import plotly.express as px
 import joblib
-from camera_input_live import camera_input_live
 import requests
 from streamlit_folium import folium_static
 from dateutil.relativedelta import relativedelta
