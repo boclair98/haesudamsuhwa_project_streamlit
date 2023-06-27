@@ -579,13 +579,13 @@ with tab3:
     col2.metric("총 질소", f"{input_nitrogen -0.2:.2f}mg/L", f"{(input_nitrogen -0.2-0.2):.2f}mg/L")
     col3.metric("총인", f"{input_total_inorganic_nitrogen-0.01:.2f}mg/L", f"{input_total_inorganic_nitrogen-0.01-0.01:.2f}mg/L")
     col4.metric("화학전산소요구량", f"{input_chemical_oxygen_demand-1:.2f}mg/L", f"{(input_chemical_oxygen_demand-1)-1:.2f}mg/L")
-    style_metric_cards()
+    style_metric_cards(box_shadow=False)
 
     st.subheader("전체 전력량 예측 결과")
     st.success(f"예측된 전체 전력량: {predicted_electricity}")
     col220, col221 = st.columns([0.3, 0.7])
     with col220:
-        st.subheader("수질 비율")
+        st.subheader("전력량 사용 비중")
         fig = px.pie(values=[input_pressure, input_turbidity, input_nitrogen,        input_total_inorganic_nitrogen,input_chemical_oxygen_demand], names=['1차 인입압력','탁도','총 질소','총인','화학적산소요구량'])
         fig.update_layout(
             showlegend=True,  
