@@ -612,7 +612,7 @@ with tab3:
     col202, col203 = st.columns([0.5, 0.5])
     with col202:
             selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date]
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= pd.Timestamp(selected_date).date()]
             filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
             monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
             fig = px.bar(monthly_data, x="관측일자", y=["유입된 탁도(NTU)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 탁도")
