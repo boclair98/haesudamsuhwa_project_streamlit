@@ -654,7 +654,7 @@ with tab3:
             fig.update_layout(yaxis_title="총질소")  # y축 레이블 설정
             st.plotly_chart(fig)
     water = pd.read_csv('인천수질데이터.csv', encoding='cp949')
-    water1 = pd.read_csv(r'C:\Users\User\Desktop\해수담수화 데이터\수질서비스.csv', encoding='cp949')
+    water1 = pd.read_csv('C:\\Users\\User\\Desktop\\해수담수화 데이터\\수질서비스.csv', encoding='cp949')
     user_input = st.text_input("지역명을 입력하세요.")
     filtered_data_water = water[water['loc_nm'].str.contains(user_input)]
     filtered_data_water1 = water1[water1['시설주소'].str.contains(user_input)]
