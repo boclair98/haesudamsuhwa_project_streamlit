@@ -362,7 +362,7 @@ with tab2:
     selected_date = pd.to_datetime(selected_date)
 
     # 선택한 날짜까지 필터링
-    filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date]
+    filtered_data = data[pd.to_datetime(data['관측일자']).date <= pd.Timestamp(selected_date).date()]
 
     # 관측일자를 연도-월 형식으로 변환 (문자열로 변환)
     filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
