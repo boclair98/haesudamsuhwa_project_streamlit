@@ -22,6 +22,7 @@ import requests
 from dateutil.relativedelta import relativedelta
 import plotly.graph_objects as go
 from PIL import Image
+import sklearn
 st.set_page_config(page_title='해수 담수화 RO 플랜트',layout='wide')
 tab1,tab2,tab3 = st.tabs(['실시간 대시보드','생산관리','수질분석'])
 with tab1:
