@@ -170,7 +170,7 @@ with tab1:
     # 실시간 정보
     st.markdown(" ")
     st.markdown("##### 실시간 정보")
-    chart_data = pd.DataFrame(columns=['Date', 'Power'])
+    chart_data = pd.DataFrame(columns=['Date', '최적화된 전력', '기존 전력'])
     chart = st.line_chart(chart_data)
     start_button = st.button("Start")
     stop_button = st.button("Stop")
