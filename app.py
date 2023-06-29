@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import datetime
-from dateutil.relativedelta import relativedelta
 from geopy.geocoders import Nominatim
 from folium import plugins
 from keras.models import load_model
@@ -10,6 +9,7 @@ from urllib.parse import quote
 import streamlit as st
 import folium
 import branca
+import geopy
 from geopy.geocoders import Nominatim
 import ssl
 from urllib.request import urlopen
@@ -22,8 +22,9 @@ import requests
 from dateutil.relativedelta import relativedelta
 import plotly.graph_objects as go
 from PIL import Image
-import sklearn
-st.set_page_config(page_title='해수 담수화 RO 플랜트',layout='wide')
+import time
+st.set_page_config(layout="wide", page_title="해수 담수화 streamlit", page_icon="🎈")
+
 tab1,tab2,tab3 = st.tabs(['실시간 대시보드','생산관리','수질분석'])
 with tab1:
     def style_metric_cards(
@@ -72,7 +73,7 @@ with tab1:
     with col102:
         st.info('시간')
     with col103:
-        input_time = st.time_input(label='시간', value=before_two_year, step=60, label_visibility="collapsed")
+        input_time = st.time_input(label='시간', value=before_two_year, step=3600, label_visibility="collapsed")
     
     # 입력받은 날짜/시간 합쳐서 datetime타입으로 변환
     date = input_date.strftime('%Y-%m-%d')
@@ -114,6 +115,7 @@ with tab1:
         y_pred2 = elec_model.predict(input_e)
         st.success(round(float(y_pred2), 3))
     
+    
 
     ## ----- 적용중인 1차 인입압력, 1차 인입압력에 따른 사용 전력량 표시 (+ 1시간 전 대비 값의 변화 표시) -----
     col200, col201 = st.columns([0.6, 0.3])
@@ -121,10 +123,17 @@ with tab1:
 
     with col200:
         st.markdown("")
-        st.markdown("##### 운전현황")   
-        image = Image.open('대시보드 공정 구성도_w(운전현황X).png')
-        st.image(image)
-
+        st.markdown("##### 운전현황")
+        if y_pred2>=2.5 and y_pred2<=3.5:
+            image = Image.open('대시보드 공정 구성도_w(운전현황X).png')
+            st.image(image)
+        elif y_pred2>3.5 and y_pred2<3.6:
+            image = Image.open('대시보드 공정 구성도_주의_w.jpg')
+            st.image(image)
+        elif y_pred2>3.7:
+            image = Image.open('대시보드 공정 구성도_이상_w.jpg')
+            st.image(image)
+        
     with col201:
         st.markdown("")
         st.markdown("##### 사용 전력량 (kwh/m3)")   
@@ -137,13 +146,13 @@ with tab1:
             domain={'x': [0, .5], 'y': [0, .7]},
             value=0,
             mode="gauge",
-            gauge={'axis': {'range': [1, 4.8]},
+            gauge={'axis': {'range': [2, 4]},
                    'steps': [
-                       {'range': [0, 1.8], 'color': "#d77981"},
-                       {'range': [1.8, 2.3], 'color': "#f4e291"},
-                       {'range': [2.3, 3.5], 'color': "#b0d779"},
-                       {'range': [3.5, 4], 'color': "#f4e291"},
-                       {'range': [4, 4.8], 'color': "#d77981"}],
+                       {'range': [2, 2.3], 'color': "#d77981"},
+                       {'range': [2.3, 2.5], 'color': "#f4e291"},
+                       {'range': [2.5, 3.5], 'color': "#b0d779"},
+                       {'range': [3.5, 3.7], 'color': "#f4e291"},
+                       {'range': [3.7, 4], 'color': "#d77981"}],
                    'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': .8, 'value': round(float(y_pred2), 3)}}))
 
         fig.update_layout(annotations=[dict(text=round(float(y_pred2), 3), 
@@ -333,6 +342,8 @@ with tab1:
     
     
     # 수질 달성률
+    
+    
 with tab2:
     def style_metric_cards(
         background_color: str = "#FFF",
@@ -350,7 +361,8 @@ with tab2:
     st.write('### 생산관리')
     data = pd.read_csv('RO공정데이터.csv', encoding='cp949')
     data.dropna(axis=0, inplace=True)
-    
+    from streamlit_extras.colored_header import colored_header
+    colored_header(label="해수담수화 플랜트 데이터 분석", description="월별 1차인입압력,  2차 생산수TDS,  전력량 평균",color_name="blue-90")
 
 
     # 사용자로부터 날짜 입력 받기
@@ -362,7 +374,7 @@ with tab2:
     selected_date = pd.to_datetime(selected_date)
 
     # 선택한 날짜까지 필터링
-    filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= pd.Timestamp(selected_date).date()]
+    filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date]
 
     # 관측일자를 연도-월 형식으로 변환 (문자열로 변환)
     filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
@@ -515,7 +527,7 @@ with tab3:
     df1 = pd.read_csv('RO공정데이터.csv', encoding='cp949')
     col200, col201,col199 = st.columns([0.2, 0.4,0.4])
     with col200:
-            selected_month = st.radio('월 선택', range(1, 13), format_func=lambda x: calendar.month_name[x])
+            selected_month = st.radio('월 선택', range(1, 13), format_func=lambda x: calendar.month_name[x]) 
     with col201:
             df['관측일자'] = pd.to_datetime(df['관측일자'])
             df['관측월'] = df['관측일자'].dt.month
@@ -579,13 +591,13 @@ with tab3:
     col2.metric("총 질소", f"{input_nitrogen -0.2:.2f}mg/L", f"{(input_nitrogen -0.2-0.2):.2f}mg/L")
     col3.metric("총인", f"{input_total_inorganic_nitrogen-0.01:.2f}mg/L", f"{input_total_inorganic_nitrogen-0.01-0.01:.2f}mg/L")
     col4.metric("화학전산소요구량", f"{input_chemical_oxygen_demand-1:.2f}mg/L", f"{(input_chemical_oxygen_demand-1)-1:.2f}mg/L")
-    style_metric_cards(box_shadow=False)
+    style_metric_cards()
 
     st.subheader("전체 전력량 예측 결과")
     st.success(f"예측된 전체 전력량: {predicted_electricity}")
     col220, col221 = st.columns([0.3, 0.7])
     with col220:
-        st.subheader("전력량 사용 비중")
+        st.subheader("수질 비율")
         fig = px.pie(values=[input_pressure, input_turbidity, input_nitrogen,        input_total_inorganic_nitrogen,input_chemical_oxygen_demand], names=['1차 인입압력','탁도','총 질소','총인','화학적산소요구량'])
         fig.update_layout(
             showlegend=True,  
@@ -612,7 +624,7 @@ with tab3:
     col202, col203 = st.columns([0.5, 0.5])
     with col202:
             selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= pd.Timestamp(selected_date).date()]
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date]
             filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
             monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
             fig = px.bar(monthly_data, x="관측일자", y=["유입된 탁도(NTU)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 탁도")
@@ -622,7 +634,7 @@ with tab3:
             st.plotly_chart(fig)
     with col203:
             selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= pd.Timestamp(selected_date).date()]
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date]
             filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
             monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
             fig = px.bar(monthly_data, x="관측일자", y=[ "유입된 화학적산소요구량(mg/L)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 화학적산소요구량")
@@ -633,7 +645,7 @@ with tab3:
     col204, col205 = st.columns([0.5, 0.5])
     with col204:
             selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= pd.Timestamp(selected_date).date()]
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date]
             filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
             monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
 
@@ -644,7 +656,7 @@ with tab3:
             st.plotly_chart(fig)
     with col205:
             selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= pd.Timestamp(selected_date).date()]
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date]
             filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
             monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
             fig = px.bar(monthly_data, x="관측일자", y=[ "유입된 총질소(mg/L)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 총질소")
@@ -654,29 +666,28 @@ with tab3:
             fig.update_layout(yaxis_title="총질소")  # y축 레이블 설정
             st.plotly_chart(fig)
     water = pd.read_csv('인천수질데이터.csv', encoding='cp949')
-    water1 =pd.read_csv('수질서비스.csv', encoding='cp949')
+    water1 = pd.read_csv('수질서비스.csv', encoding='cp949')
+
+    
+
+    
     user_input = st.text_input("지역명을 입력하세요.")
     filtered_data_water = water[water['loc_nm'].str.contains(user_input)]
     filtered_data_water1 = water1[water1['시설주소'].str.contains(user_input)]
 
     if not filtered_data_water.empty:
         st.write("수질 데이터:")
-        st.write(filtered_data_water[['loc_nm', 'temp', 'ph', 'do_', 't_n', 't_p', 'cod']])  
-        geolocator = Nominatim(user_agent="my_app")
-        location = geolocator.geocode(user_input)
-        if location:
-            latitude = location.latitude
-            longitude = location.longitude
-            st.write("입력한 지역의 경도: ", longitude)
-            st.write("입력한 지역의 위도: ", latitude)
-            st.map(data=[{"latitude": latitude, "longitude": longitude, "tooltip": user_input}])
-        else:
-            st.write("입력한 지역의 좌표를 가져올 수 없습니다.")
+        st.write(filtered_data_water[['loc_nm', 'temp', 'ph', 'do_', 't_n', 't_p', 'cod']])
     elif not filtered_data_water1.empty:
         st.write("수질 데이터:")
         st.write(filtered_data_water1[['시설주소', 'pH', '탁도']])
-        geolocator = Nominatim(user_agent="my_app")
-        location = geolocator.geocode(user_input)
+    else:
+        st.write("해당 지역의 수질 데이터를 찾을 수 없습니다.")
+        st.write("입력한 지역: ", user_input)
+
+    geolocator = Nominatim(user_agent="my_app")
+    try:
+        location = geolocator.geocode(user_input, timeout=10)
         if location:
             latitude = location.latitude
             longitude = location.longitude
@@ -685,18 +696,5 @@ with tab3:
             st.map(data=[{"latitude": latitude, "longitude": longitude, "tooltip": user_input}])
         else:
             st.write("입력한 지역의 좌표를 가져올 수 없습니다.")
-    else:
-    
-        geolocator = Nominatim(user_agent="my_app")
-        location = geolocator.geocode(user_input)
-        if location:
-            latitude = location.latitude
-            longitude = location.longitude
-            st.write("입력한 지역의 경도: ", longitude)
-            st.write("입력한 지역의 위도: ", latitude)
-
-            st.map(data=[{"latitude": latitude, "longitude": longitude, "tooltip": user_input}])
-        else:
-            st.write("해당 지역의 좌표와 수질 데이터를 찾을 수 없습니다.")
-            st.write("입력한 지역: ", user_input)
-
+    except GeocoderUnavailable:
+        st.write("지오코딩 서비스를 사용할 수 없습니다.")
