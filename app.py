@@ -23,7 +23,7 @@ from dateutil.relativedelta import relativedelta
 import plotly.graph_objects as go
 from PIL import Image
 import time
-from streamlit_extras.colored_header import colored_header
+
 from time import sleep
 import random
 st.set_page_config(layout="wide", page_title="해수 담수화 streamlit", page_icon="🎈")
