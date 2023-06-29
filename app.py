@@ -174,12 +174,13 @@ with tab1:
     chart = st.line_chart(chart_data)
     start_button = st.button("Start")
     stop_button = st.button("Stop")
+
     if start_button:
         while True:
             now = datetime.datetime.now()
             current_time = now.strftime('%H:%M')
 
-    # Filter seawater DataFrame for rows with time greater than or equal to the current time
+        # Filter seawater DataFrame for rows with time greater than or equal to the current time
             input_p = seawater.loc[seawater['관측일자'] >= current_time, ['수온', '수소이온농도']]
             input_e = seawater.loc[seawater['관측일자'] >= current_time, ['총인', '화학적산소요구량', '총질소', '탁도']]
 
@@ -187,24 +188,25 @@ with tab1:
                 y_pred1 = random.uniform(3.0, 3.45) - 0.29  # Default value
                 y_pred2 = random.uniform(3.2, 3.75)  # Default value
             else:
-        # Preprocess or transform the input data for prediction
+            # Preprocess or transform the input data for prediction
                 y_pred1 = pressure_model.predict(input_p)
                 input_e['1차 인입압력'] = y_pred1
                 y_pred2 = elec_model.predict(input_e)
 
-    # Create new data entries
+        # Create new data entries
             new_data = pd.DataFrame({'Date': [now], '최적화된 전력': [y_pred1], '기존 전력': [y_pred2]})
 
-    # Append new data to the existing DataFrame
+        # Append new data to the existing DataFrame
             chart_data = chart_data.append(new_data, ignore_index=True)
 
-    # Limit the chart data to the last 1 hour
+        # Limit the chart data to the last 1 hour
             one_hour_ago = now - datetime.timedelta(hours=1)
             chart_data = chart_data[chart_data['Date'] >= one_hour_ago]
 
-    # Update the chart
+        # Update the chart
             chart.line_chart(chart_data, x='Date', y=['최적화된 전력', '기존 전력'])
             sleep(1)
+
             if stop_button:
                 break
 # 스트림릿 애플리케이션
