@@ -362,7 +362,7 @@ with tab2:
     st.write('### 생산관리')
     data = pd.read_csv('RO공정데이터.csv', encoding='cp949')
     data.dropna(axis=0, inplace=True)
-    colored_header(label="해수담수화 플랜트 데이터 분석", description="월별 1차인입압력,  2차 생산수TDS,  전력량 평균",color_name="blue-90")
+    
 
 
     # 사용자로부터 날짜 입력 받기
