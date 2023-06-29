@@ -23,6 +23,7 @@ from dateutil.relativedelta import relativedelta
 import plotly.graph_objects as go
 from PIL import Image
 import time
+from streamlit_extras.colored_header import colored_header
 st.set_page_config(layout="wide", page_title="해수 담수화 streamlit", page_icon="🎈")
 
 tab1,tab2,tab3 = st.tabs(['실시간 대시보드','생산관리','수질분석'])
@@ -361,7 +362,6 @@ with tab2:
     st.write('### 생산관리')
     data = pd.read_csv('RO공정데이터.csv', encoding='cp949')
     data.dropna(axis=0, inplace=True)
-    from streamlit_extras.colored_header import colored_header
     colored_header(label="해수담수화 플랜트 데이터 분석", description="월별 1차인입압력,  2차 생산수TDS,  전력량 평균",color_name="blue-90")
 
 
