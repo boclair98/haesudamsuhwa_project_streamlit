@@ -122,51 +122,126 @@ with tab1:
  
 
     with col200:
-        st.markdown("")
         st.markdown("##### 운전현황")
-        if y_pred2>=2.5 and y_pred2<=3.5:
-            image = Image.open('대시보드 공정 구성도_w(운전현황X).png')
+        if y_pred2>=2.5 and y_pred2<3.5:
+            image_g = Image.open('대시보드 구성도_정상.png')
+            st.image(image_g)
+            st.warning("주의 단계 진입 : partial two pass로 전환 운영합니다.")
+            
+        elif y_pred2>=3.5 and y_pred2<=3.6:
+            image = Image.open('대시보드 구성도_주의.png')
             st.image(image)
-        elif y_pred2>3.5 and y_pred2<3.6:
-            image = Image.open('대시보드 공정 구성도_주의_w.jpg')
+            st.warning("주의 단계 진입 : partial two pass로 전환 운영합니다.")
+            
+        elif y_pred2>3.6:
+            image = Image.open('대시보드 구성도_이상.png')
             st.image(image)
-        elif y_pred2>3.7:
-            image = Image.open('대시보드 공정 구성도_이상_w.jpg')
-            st.image(image)
+            st.error("경고 단계 진입 : split partial two pass로 전환 운영합니다.")
         
     with col201:
-        st.markdown("")
         st.markdown("##### 사용 전력량 (kwh/m3)")   
     
         # 전력량 게이지 차트
         elec = ro.loc[ro['일시'] == date_time, '전체 전력량']
         
+        if y_pred2>=2.5 and y_pred2<3.5:
+            fig = go.Figure(go.Indicator(
+                domain={'x': [0, 1], 'y': [0, 1]},
+                value=0,
+                mode="gauge",
+                gauge={'axis': {'range': [2, 4]},
+                       'steps': [
+                           {'range': [2, 2.3], 'color': "#d77981"},
+                           {'range': [2.3, 2.5], 'color': "#f4e291"},
+                           {'range': [2.5, 3.5], 'color': "#b0d779"},
+                           {'range': [3.5, 3.7], 'color': "#f4e291"},
+                           {'range': [3.7, 4], 'color': "#d77981"}],
+                       'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': .8, 'value': round(float(y_pred2), 2)}}))
         
-        fig = go.Figure(go.Indicator(
-            domain={'x': [0, .5], 'y': [0, .7]},
-            value=0,
-            mode="gauge",
-            gauge={'axis': {'range': [2, 4]},
-                   'steps': [
-                       {'range': [2, 2.3], 'color': "#d77981"},
-                       {'range': [2.3, 2.5], 'color': "#f4e291"},
-                       {'range': [2.5, 3.5], 'color': "#b0d779"},
-                       {'range': [3.5, 3.7], 'color': "#f4e291"},
-                       {'range': [3.7, 4], 'color': "#d77981"}],
-                   'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': .8, 'value': round(float(y_pred2), 3)}}))
-
-        fig.update_layout(annotations=[dict(text=round(float(y_pred2), 3), 
-                                            x=0.18, 
-                                            y=0.2, 
-                                            font=dict(size=40, color='black'), 
-                                            showarrow=False)])
-        fig.add_annotation(text='(kwh/m3)', 
-                           x=0.185, 
-                           y=0.1, 
-                           font=dict(size=20, color='black'), 
-                           showarrow=False)
+            fig.update_layout(annotations=[dict(text=round(float(y_pred2), 2), 
+                                                x=0.49, 
+                                                y=0.15, 
+                                                font=dict(size=37, color='black'), 
+                                                showarrow=False)],
+                             autosize =False, width=550, height=290)
+            fig.add_annotation(text='(kwh/m3)', 
+                               x=0.494, 
+                               y=0.07, 
+                               font=dict(size=15, color='black'), 
+                               showarrow=False)
         
-        st.plotly_chart(fig)
+            st.plotly_chart(fig)
+        
+        elif y_pred2>=3.5 and y_pred2<3.7:
+            fig = go.Figure(go.Indicator(
+                domain={'x': [0, 1], 'y': [0, 1]},
+                value=0,
+                mode="gauge",
+                gauge={'axis': {'range': [2, 4]},
+                       'steps': [
+                           {'range': [2, 2.3], 'color': "#d77981"},
+                           {'range': [2.3, 2.5], 'color': "#f4e291"},
+                           {'range': [2.5, 3.5], 'color': "#b0d779"},
+                           {'range': [3.5, 3.7], 'color': "#f4e291"},
+                           {'range': [3.7, 4], 'color': "#d77981"}],
+                       'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': .8, 
+                                     'value': round(round(float(y_pred2), 2) - 0.14, 2)}}))
+        
+            fig.update_layout(annotations=[dict(text=round(round(float(y_pred2), 2) - 0.14, 2), 
+                                                x=0.49, 
+                                                y=0.15, 
+                                                font=dict(size=37, color='black'), 
+                                                showarrow=False)],
+                             autosize =False, width=550, height=290)
+            
+            fig.add_annotation(text='(kwh/m3)', 
+                               x=0.494, 
+                               y=0.07, 
+                               font=dict(size=15, color='black'), 
+                               showarrow=False)
+            
+            fig.add_annotation(text='▼ 0.14', 
+                               x=0.49, 
+                               y=-.2, 
+                               font=dict(size=25, color='red'), 
+                               showarrow=False)            
+        
+            st.plotly_chart(fig)
+        
+        elif y_pred2>=3.7:
+            fig = go.Figure(go.Indicator(
+                domain={'x': [0, 1], 'y': [0, 1]},
+                value=0,
+                mode="gauge",
+                gauge={'axis': {'range': [2, 4]},
+                       'steps': [
+                           {'range': [2, 2.3], 'color': "#d77981"},
+                           {'range': [2.3, 2.5], 'color': "#f4e291"},
+                           {'range': [2.5, 3.5], 'color': "#b0d779"},
+                           {'range': [3.5, 3.7], 'color': "#f4e291"},
+                           {'range': [3.7, 4], 'color': "#d77981"}],
+                       'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': .8, 
+                                     'value': round(round(float(y_pred2), 2) - 0.29, 3)}}))
+        
+            fig.update_layout(annotations=[dict(text=round(round(float(y_pred2), 2) - 0.29, 3), 
+                                                x=0.49, 
+                                                y=0.15, 
+                                                font=dict(size=37, color='black'), 
+                                                showarrow=False)],
+                             autosize =False, width=550, height=290)
+            fig.add_annotation(text='(kwh/m3)', 
+                               x=0.494, 
+                               y=0.07, 
+                               font=dict(size=15, color='black'), 
+                               showarrow=False)
+            
+            fig.add_annotation(text='▼ 0.29', 
+                               x=0.49, 
+                               y=-.2, 
+                               font=dict(size=25, color='red'), 
+                               showarrow=False)
+        
+            st.plotly_chart(fig)
     # 실시간 정보
     st.markdown(" ")
     st.markdown("##### 실시간 정보")
@@ -197,7 +272,7 @@ with tab1:
             new_data = pd.DataFrame({'Date': [now], '최적화된 전력': [y_pred1], '기존 전력': [y_pred2]})
 
         # Append new data to the existing DataFrame
-            chart_data = pd.concat([chart_data, new_data], ignore_index=True)
+            chart_data = chart_data.append(new_data, ignore_index=True)
 
         # Limit the chart data to the last 1 hour
             one_hour_ago = now - datetime.timedelta(hours=1)
