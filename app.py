@@ -634,7 +634,7 @@ with tab3:
             st.plotly_chart(fig)
     with col203:
             selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date]
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
             filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
             monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
             fig = px.bar(monthly_data, x="관측일자", y=[ "유입된 화학적산소요구량(mg/L)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 화학적산소요구량")
@@ -645,7 +645,8 @@ with tab3:
     col204, col205 = st.columns([0.5, 0.5])
     with col204:
             selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date]
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
+
             filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
             monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
 
@@ -656,7 +657,8 @@ with tab3:
             st.plotly_chart(fig)
     with col205:
             selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date]
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
+
             filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
             monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
             fig = px.bar(monthly_data, x="관측일자", y=[ "유입된 총질소(mg/L)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 총질소")
