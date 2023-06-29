@@ -272,7 +272,7 @@ with tab1:
             new_data = pd.DataFrame({'Date': [now], '최적화된 전력': [y_pred1], '기존 전력': [y_pred2]})
 
         # Append new data to the existing DataFrame
-            chart_data = chart_data.append(new_data, ignore_index=True)
+            chart_data = pd.concat([chart_data, new_data], ignore_index=True)
 
         # Limit the chart data to the last 1 hour
             one_hour_ago = now - datetime.timedelta(hours=1)
