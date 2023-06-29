@@ -23,6 +23,9 @@ from dateutil.relativedelta import relativedelta
 import plotly.graph_objects as go
 from PIL import Image
 import time
+from streamlit_extras.colored_header import colored_header
+from time import sleep
+import random
 st.set_page_config(layout="wide", page_title="해수 담수화 streamlit", page_icon="🎈")
 
 tab1,tab2,tab3 = st.tabs(['실시간 대시보드','생산관리','수질분석'])
@@ -40,9 +43,6 @@ with tab1:
             if box_shadow
             else "box-shadow: none !important;"
         )
-    st.title("해수담수화 플랜트 A")
-
-
 # 데이터 불러오기
     seawater = pd.read_csv('해양환경공단_해양수질자동측정망_천수만(2021).csv', encoding='cp949') # 수질 데이터
     ro = pd.read_csv('RO공정데이터_0621.csv', encoding='cp949') # RO공정 데이터
@@ -60,7 +60,7 @@ with tab1:
     before_one_hour = before_one_hour.strftime('%Y-%m-%d %H:00:00')
     before_one_hour = pd.to_datetime(before_one_hour)
 
-    st.header("RO공정 대시보드")
+    st.header("해수담수화 플랜트 A")
     
     ## ----- 날짜/시간 입력 cols 구성 -----
     st.markdown("")
@@ -167,12 +167,48 @@ with tab1:
                            showarrow=False)
         
         st.plotly_chart(fig)
-    
-    
-    
     # 실시간 정보
     st.markdown(" ")
-    st.markdown("##### 실시간 정보")  
+    st.markdown("##### 실시간 정보")
+    chart_data = pd.DataFrame(columns=['Date', 'Power'])
+    chart = st.line_chart(chart_data)
+    start_button = st.button("Start")
+    stop_button = st.button("Stop")
+    if start_button:
+        while True:
+            now = datetime.datetime.now()
+            current_time = now.strftime('%H:%M')
+
+    # Filter seawater DataFrame for rows with time greater than or equal to the current time
+            input_p = seawater.loc[seawater['관측일자'] >= current_time, ['수온', '수소이온농도']]
+            input_e = seawater.loc[seawater['관측일자'] >= current_time, ['총인', '화학적산소요구량', '총질소', '탁도']]
+
+            if input_p.empty or input_e.empty:
+                y_pred1 = random.uniform(3.0, 3.45) - 0.29  # Default value
+                y_pred2 = random.uniform(3.2, 3.75)  # Default value
+            else:
+        # Preprocess or transform the input data for prediction
+                y_pred1 = pressure_model.predict(input_p)
+                input_e['1차 인입압력'] = y_pred1
+                y_pred2 = elec_model.predict(input_e)
+
+    # Create new data entries
+            new_data = pd.DataFrame({'Date': [now], '최적화된 전력': [y_pred1], '기존 전력': [y_pred2]})
+
+    # Append new data to the existing DataFrame
+            chart_data = chart_data.append(new_data, ignore_index=True)
+
+    # Limit the chart data to the last 1 hour
+            one_hour_ago = now - datetime.timedelta(hours=1)
+            chart_data = chart_data[chart_data['Date'] >= one_hour_ago]
+
+    # Update the chart
+            chart.line_chart(chart_data, x='Date', y=['최적화된 전력', '기존 전력'])
+            sleep(1)
+            if stop_button:
+                break
+# 스트림릿 애플리케이션
+    st.warning("예측이 중지되었습니다.")
 
     col200, col201, col202 = st.columns([0.25, 0.25, 0.5])
     with col200:
@@ -324,12 +360,7 @@ with tab1:
     if inflow_N-processing_N ==0:
         processed_ratio3 = 1
     reducing_ratio3 = 1-processed_ratio3
-
- 
     # Card content - Value
-
- 
-
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("탁도 달성률", f"{processed_ratio:.2%}")
     col2.metric("COD 달성률", f"{processed_ratio1:.2%}")
@@ -337,12 +368,6 @@ with tab1:
     col4.metric("총인 달성률", f"{processed_ratio3:.2%}")
     style_metric_cards(box_shadow=False)
 
-    
-    
-    
-    
-    # 수질 달성률
-    
     
 with tab2:
     def style_metric_cards(
@@ -358,7 +383,6 @@ with tab2:
             if box_shadow
             else "box-shadow: none !important;"
         )
-    st.write('### 생산관리')
     data = pd.read_csv('RO공정데이터.csv', encoding='cp949')
     data.dropna(axis=0, inplace=True)
     
@@ -520,8 +544,6 @@ with tab3:
     """
     st.markdown(background_color, unsafe_allow_html=True)
 
-    st.header('해수 담수화 프로젝트')
-    st.subheader('스트림릿 시각화')
     df = pd.read_csv('RO공정데이터.csv', encoding='cp949')
     df1 = pd.read_csv('RO공정데이터.csv', encoding='cp949')
     col200, col201,col199 = st.columns([0.2, 0.4,0.4])
@@ -544,6 +566,56 @@ with tab3:
             fig_power = px.line(df_selected_month, x='관측일자', y='전체 전력량', title='월별 전체 전력량')
             fig_power.update_layout(xaxis_tickformat='%Y-%m-%d')
             st.plotly_chart(fig_power)
+    data = pd.read_csv('해수수질데이터.csv', encoding='cp949')
+    data.dropna(axis=0, inplace=True)
+    min_date = pd.to_datetime(data['관측일자']).min().date()
+    max_date = pd.to_datetime(data['관측일자']).max().date()
+    default_date = min_date + (max_date - min_date) // 2
+    selected_date = st.date_input("날짜 선택", value=default_date, min_value=min_date, max_value=max_date, key="unique_key")
+    col202, col203 = st.columns([0.5, 0.5])
+    with col202:
+            selected_date = pd.to_datetime(selected_date)
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
+            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
+            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
+            fig = px.bar(monthly_data, x="관측일자", y=["유입된 탁도(NTU)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 탁도")
+            fig.add_hline(y=1, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
+            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
+            fig.update_layout(yaxis_title="탁도")  # y축 레이블 설정
+            st.plotly_chart(fig)
+    with col203:
+            selected_date = pd.to_datetime(selected_date)
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
+            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
+            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
+            fig = px.bar(monthly_data, x="관측일자", y=[ "유입된 화학적산소요구량(mg/L)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 화학적산소요구량")
+            fig.add_hline(y=1, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
+            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
+            fig.update_layout(yaxis_title="화학적산소요구량")  # y축 레이블 설정
+            st.plotly_chart(fig)
+    col204, col205 = st.columns([0.5, 0.5])
+    with col204:
+            selected_date = pd.to_datetime(selected_date)
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
+            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
+            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
+
+            fig = px.bar(monthly_data, x="관측일자", y=["유입된 총인(mg/L)"],     color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 총인")
+            fig.add_hline(y=0.01, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
+            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
+            fig.update_layout(yaxis_title="총인")  # y축 레이블 설정
+            st.plotly_chart(fig)
+    with col205:
+            selected_date = pd.to_datetime(selected_date)
+            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
+            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
+            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
+            fig = px.bar(monthly_data, x="관측일자", y=[ "유입된 총질소(mg/L)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 총질소")
+            fig.add_hline(y=0.2, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
+        
+            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
+            fig.update_layout(yaxis_title="총질소")  # y축 레이블 설정
+            st.plotly_chart(fig)
 
     df.drop(['관측일자', '2차 인입압력', '1차 생산수 TDS', '2차 생산수 TDS', '전체 전력량', '총인', '화학적산소요구량', '총질소', '탁도'], axis=1, inplace=True)
 
@@ -591,18 +663,44 @@ with tab3:
     col3.metric("총인", f"{input_total_inorganic_nitrogen-0.01:.2f}mg/L", f"{input_total_inorganic_nitrogen-0.01-0.01:.2f}mg/L")
     col4.metric("화학전산소요구량", f"{input_chemical_oxygen_demand-1:.2f}mg/L", f"{(input_chemical_oxygen_demand-1)-1:.2f}mg/L")
     style_metric_cards()
-
-    st.subheader("전체 전력량 예측 결과")
+    st.subheader("수질 조절 후 전력량 예측 ")
     st.success(f"예측된 전체 전력량: {predicted_electricity}")
     col220, col221 = st.columns([0.3, 0.7])
     with col220:
-        st.subheader("수질 비율")
-        fig = px.pie(values=[input_pressure, input_turbidity, input_nitrogen,        input_total_inorganic_nitrogen,input_chemical_oxygen_demand], names=['1차 인입압력','탁도','총 질소','총인','화학적산소요구량'])
+        fig = px.pie(values=[input_pressure, input_turbidity, input_nitrogen,input_total_inorganic_nitrogen,input_chemical_oxygen_demand], names=['1차 인입압력','탁도','총 질소','총인','화학적산소요구량'])
         fig.update_layout(
-            showlegend=True,  
-            legend_title="데이터"  
+        showlegend=True,
+        legend_title="데이터",
+        plot_bgcolor='rgb(240, 240, 240)',
+        paper_bgcolor='rgba(0, 0, 0, 0)',  # 배경 투명화
+        font=dict(
+            family='Arial',
+            size=12,
+            color='black'
+        ),
+        title=dict(
+            text='전력량 요인',
+            font=dict(
+                family='Arial',
+                size=24,
+                color='black'
+            )
+        ),
+        legend=dict(
+            x=0.85,
+            y=1.2,
+            bgcolor='rgba(255, 255, 255, 0.7)',  # 범례 배경 투명도 설정
+            bordercolor='black',  # 범례 테두리 색상
+            borderwidth=1,  # 범례 테두리 두께
+        ),margin=dict(r=400)
         )
-        fig.update_traces(hole=.3)
+        fig.update_traces(hole=0.4, 
+                  marker=dict(colors = ['#1f2933', '#4b5563', '#6b7280', '#9ca3af', '#d1d5db']),
+                  textposition='inside',
+                  textinfo='percent+label',
+                  hovertemplate='<b>%{label}</b><br>%{value:.2f}',
+                  hoverlabel=dict(bgcolor='white', font=dict(color='black')),
+                  insidetextfont=dict(color='white'))
         st.plotly_chart(fig)
     with col221:
         col1, col2, col3, col4, col5 = st.columns(5) 
@@ -614,59 +712,7 @@ with tab3:
         col3.metric(label="총 질소 비율", value=pie_percentages[2])
         col4.metric(label="총인 비율", value=pie_percentages[3])
         col5.metric(label="화학적산소요구량 비율", value=pie_percentages[4])
-    data = pd.read_csv('해수수질데이터.csv', encoding='cp949')
-    data.dropna(axis=0, inplace=True)
-    min_date = pd.to_datetime(data['관측일자']).min().date()
-    max_date = pd.to_datetime(data['관측일자']).max().date()
-    default_date = min_date + (max_date - min_date) // 2
-    selected_date = st.date_input("날짜 선택", value=default_date, min_value=min_date, max_value=max_date, key="unique_key")
-    col202, col203 = st.columns([0.5, 0.5])
-    with col202:
-            selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
-
-            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
-            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
-            fig = px.bar(monthly_data, x="관측일자", y=["유입된 탁도(NTU)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 탁도")
-            fig.add_hline(y=1, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
-            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
-            fig.update_layout(yaxis_title="탁도")  # y축 레이블 설정
-            st.plotly_chart(fig)
-    with col203:
-            selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
-            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
-            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
-            fig = px.bar(monthly_data, x="관측일자", y=[ "유입된 화학적산소요구량(mg/L)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 화학적산소요구량")
-            fig.add_hline(y=1, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
-            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
-            fig.update_layout(yaxis_title="화학적산소요구량")  # y축 레이블 설정
-            st.plotly_chart(fig)
-    col204, col205 = st.columns([0.5, 0.5])
-    with col204:
-            selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
-
-            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
-            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
-
-            fig = px.bar(monthly_data, x="관측일자", y=["유입된 총인(mg/L)"],     color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 총인")
-            fig.add_hline(y=0.01, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
-            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
-            fig.update_layout(yaxis_title="총인")  # y축 레이블 설정
-            st.plotly_chart(fig)
-    with col205:
-            selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
-
-            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
-            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
-            fig = px.bar(monthly_data, x="관측일자", y=[ "유입된 총질소(mg/L)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 총질소")
-            fig.add_hline(y=0.2, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
-        
-            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
-            fig.update_layout(yaxis_title="총질소")  # y축 레이블 설정
-            st.plotly_chart(fig)
+    
     water = pd.read_csv('인천수질데이터.csv', encoding='cp949')
     water1 = pd.read_csv('수질서비스.csv', encoding='cp949')
 
