@@ -302,7 +302,7 @@ with tab1:
             )
     
         # Add red dots for values exceeding 3.5
-            red_dots = alt.Chart(chart_data[chart_data['기존 전력'] > 3.5]).mark_point(color='red', size=100).encode(
+            red_dots = alt.Chart(chart_data[chart_data['기존 전력'] >= 3.5]).mark_point(color='red', size=0).encode(
             x='Date:T',
             y=alt.Y('기존 전력:Q', title='전력'),
             )
