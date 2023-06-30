@@ -275,7 +275,7 @@ with tab1:
             if input_p.empty or input_e.empty:
                 min_difference = 0.1
                 max_difference = 0.3
-                y_pred1 = random.uniform(2.8, 3.75) 
+                y_pred1 = random.uniform(2.8, 3.6) 
                 difference = random.uniform(min_difference, max_difference)# Default value
                 y_pred2 = y_pred1 + difference  # Default value
             else:
