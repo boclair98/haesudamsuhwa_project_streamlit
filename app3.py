@@ -275,7 +275,7 @@ with tab1:
             if input_p.empty or input_e.empty:
                 min_difference = 0.1
                 max_difference = 0.3
-                y_pred1 = random.uniform(3.15, 3.31) 
+                y_pred1 = random.uniform(2.8, 3.75) 
                 difference = random.uniform(min_difference, max_difference)# Default value
                 y_pred2 = y_pred1 + difference  # Default value
             else:
@@ -302,7 +302,7 @@ with tab1:
             )
     
         # Add red dots for values exceeding 3.5
-            red_dots = alt.Chart(chart_data[chart_data['기존 전력'] >= 3.5]).mark_point(color='red', size=0).encode(
+            red_dots = alt.Chart(chart_data[chart_data['기존 전력'] >= 3.5]).mark_point(color='red').encode(
             x='Date:T',
             y=alt.Y('기존 전력:Q', title='전력'),
             )
