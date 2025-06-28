@@ -5,7 +5,7 @@ folium
 tensorflow
 haversine
 urllib3
-streamlit
+streamlit==1.24.1
 branca
 plotly
 seaborn
