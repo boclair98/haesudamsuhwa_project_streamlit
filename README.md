@@ -93,6 +93,15 @@ streamit_test1/
   - 해당 지역 위도/경도 지도에 표시 (geopy + st.map 사용)
 
 ---
+## 사용 기술 (Technologies Used)
+
+- **Python**: 주요 프로그래밍 언어
+- **Streamlit**: 대시보드 및 웹 앱 프레임워크
+- **Pandas**: 데이터 처리 및 분석
+- **Matplotlib / Seaborn**: 데이터 시각화 (사용 시)
+- **relativedelta**: 날짜 계산용 라이브러리
+- **Git & GitHub**: 버전 관리 및 코드 저장소
+
 
 ### 📌 기타 기능
 
