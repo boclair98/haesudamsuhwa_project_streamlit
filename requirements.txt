@@ -12,5 +12,5 @@ seaborn
 joblib
 requests
 Pillow
-scikit-learn==1.0
+scikit-learn==1.1
 datetime
