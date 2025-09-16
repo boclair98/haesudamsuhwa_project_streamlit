@@ -1,9 +1,8 @@
 pandas
-numpy>=2.0
+numpy==1.26.4
 geopy
 folium
 tensorflow
-haversine
 urllib3
 streamlit
 branca
@@ -13,4 +12,3 @@ joblib
 requests
 Pillow
 scikit-learn==1.3.0
-datetime
