@@ -1,31 +1,22 @@
 import pandas as pd
 import numpy as np
 import datetime
-from geopy.geocoders import Nominatim
-from folium import plugins
-# from keras.models import load_model # keras는 사용되지 않으므로 주석 처리 또는 삭제 가능
-from haversine import haversine
-from urllib.parse import quote
 import streamlit as st
 import folium
-import branca
-import geopy
-from geopy.geocoders import Nominatim
-import ssl
-from urllib.request import urlopen
-import matplotlib.pyplot as plt
-import seaborn as sns
-import calendar
-import plotly.express as px
 import joblib
 import requests
-from dateutil.relativedelta import relativedelta
+import calendar
+import plotly.express as px
 import plotly.graph_objects as go
-from PIL import Image
-import time
+import seaborn as sns
 import altair as alt
+from PIL import Image
+from urllib.parse import quote
+from urllib.request import urlopen
+from geopy.geocoders import Nominatim
+from haversine import haversine
+from dateutil.relativedelta import relativedelta
 from time import sleep
-import random
 
 # 페이지 기본 설정
 st.set_page_config(layout="wide", page_title="해수 담수화 streamlit", page_icon="🎈")
@@ -34,6 +25,9 @@ st.set_page_config(layout="wide", page_title="해수 담수화 streamlit", page_
 # 데이터 파일이 크거나 로딩이 오래 걸리는 경우, st.cache_data를 사용하면 앱 성능이 향상됩니다.
 @st.cache_data
 def load_data():
+    """
+    앱에 필요한 모든 CSV 파일을 로드합니다.
+    """
     try:
         seawater_df = pd.read_csv('해양환경공단_해양수질자동측정망_천수만(2021).csv', encoding='cp949')
         ro_df = pd.read_csv('RO공정데이터_0621.csv', encoding='cp949')
@@ -58,9 +52,17 @@ seawater, ro, df_quality, df_ro_monthly, df_seawater_quality = load_data()
 # --- 모델 로딩 (앱 실행 시 한 번만 실행되도록 캐싱) ---
 @st.cache_resource
 def load_models():
-    pressure_model = joblib.load('LR_pressure.pkl')
-    elec_model = joblib.load('RF_elec.pkl')
-    return pressure_model, elec_model
+    """
+    학습된 모델을 로드합니다. scikit-learn 버전 호환성 문제에 유의하세요.
+    """
+    try:
+        pressure_model = joblib.load('LR_pressure.pkl')
+        elec_model = joblib.load('RF_elec.pkl')
+        return pressure_model, elec_model
+    except Exception as e:
+        st.error(f"모델을 로드하는 중 오류가 발생했습니다: {e}")
+        st.error("❗**해결 방법**: 로컬 환경에서 `scikit-learn`을 `pip install --upgrade scikit-learn`으로 업데이트한 후, 모델 파일을 다시 학습시켜서 새로 저장하고 GitHub에 업로드해야 합니다.")
+        return None, None
 
 # 데이터나 모델 로딩에 실패하면 앱 실행 중지
 if seawater is None or load_models() is None:
@@ -131,12 +133,12 @@ with tab1:
         y_pred2 = elec_model.predict(input_e)
 
         with col100:
-            st.success('1차 인입압력  : ')
+            st.success('1차 인입압력  : ')
         with col101:
             st.success(f"{round(float(y_pred1), 3)} bar")
 
         with col102:
-            st.success('사용 전력량    : ')
+            st.success('사용 전력량    : ')
         with col103:
             if y_pred2 >= 2.5 and y_pred2 < 3.5:
                 st.success(f"{round(float(y_pred2), 3)} kwh/m³")
@@ -213,7 +215,7 @@ with tab1:
         col_m2.metric(label="2차 인입압력 (bar)", value=p2_val, delta=p2_delta)
 
         tds_val = float(tem_tds.iloc[0]) if not tem_tds.empty else "N/A"
-        tds_delta = round(float(tem_tds.iloc[0] - tem_tds_prev.iloc[0]), 2) if not tem_tds.empty and not tem_tds_prev.empty else None
+        tds_delta = round(float(tem_tds.iloc[0] - tds_tds_prev.iloc[0]), 2) if not tem_tds.empty and not tem_tds_prev.empty else None
         col_m3.metric(label="최종 생산수 TDS (mg/L)", value=tds_val, delta=tds_delta)
 
         power_val = float(tem_power.iloc[0]) if not tem_power.empty else "N/A"
