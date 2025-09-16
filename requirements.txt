@@ -1,11 +1,11 @@
 pandas
-numpy
+numpy>=2.0
 geopy
 folium
 tensorflow
 haversine
 urllib3
-streamlit==1.24.1
+streamlit
 branca
 plotly
 seaborn
