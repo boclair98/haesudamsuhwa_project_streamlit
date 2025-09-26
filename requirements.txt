@@ -1,17 +1,20 @@
-# 2023년 환경과 호환되는 안정적인 버전 조합
+# 지정된 안정적인 버전 (2023년 2~3월 기준)
 scikit-learn==1.2.2
 pandas==1.5.3
 numpy==1.23.5
 
-# 나머지 라이브러리는 그대로 유지 (최신 버전 사용)
-geopy
-folium
-urllib3
-streamlit
-branca
-plotly
-seaborn
-joblib
-requests
-Pillow
-haversine
+# 기타 라이브러리 (2023년 안정적인 버전, 최신에 가까운 버전)
+geopy==2.3.0
+folium==0.14.0
+urllib3==1.26.15
+streamlit==1.20.0
+branca==0.6.0
+plotly==5.13.1
+seaborn==0.12.2
+joblib==1.2.0
+requests==2.28.2
+Pillow==9.4.0
+# haversine은 호환성 문제로 제외
+
+# 호환성을 위해 파이썬 버전을 지정하는 것도 고려해볼 수 있습니다. (선택 사항)
+# Python 3.9 또는 3.10이 1.2.2 버전 scikit-learn과 잘 호환됩니다.
