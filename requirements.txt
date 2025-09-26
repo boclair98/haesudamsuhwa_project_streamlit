@@ -12,3 +12,4 @@ joblib
 requests
 Pillow
 scikit-learn
+haversine
