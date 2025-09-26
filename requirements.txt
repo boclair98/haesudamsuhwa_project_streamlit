@@ -1,19 +1,15 @@
-# Python 3.9 또는 3.10 환경에 최적화
-# scikit-learn 1.2.2 공식 지원 환경: Python (3.8 - 3.11)
-
-# 지정된 핵심 라이브러리 버전
+pandas
+numpy
+geopy
+folium
+tensorflow
+urllib3
+streamlit
+branca
+plotly
+seaborn
+joblib
+requests
+Pillow
+haversine
 scikit-learn==1.2.2
-pandas==1.5.3
-numpy==1.23.5
-
-# 기타 라이브러리 (2023년 2~3월 기준 안정적인 버전)
-geopy==2.3.0
-folium==0.14.0
-urllib3==1.26.15
-streamlit==1.20.0
-branca==0.6.0
-plotly==5.13.1
-seaborn==0.12.2
-joblib==1.2.0
-requests==2.28.2
-Pillow==9.4.0
