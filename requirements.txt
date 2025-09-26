@@ -1,5 +1,15 @@
+# requirements.txt
+
+# Ensure haversine is present and explicitly versioned
+haversine==1.1.1 
+
+# Core ML/Data Packages (MATCH THESE TO YOUR LOCAL ENVIRONMENT)
+scikit-learn==1.2.2
+numpy==1.23.5  # Example: Change this to your local version (e.g., pip show numpy)
+joblib==1.2.0  # Example: Change this to your local version
+
+# Remaining Packages
 pandas
-numpy
 geopy
 folium
 tensorflow
@@ -8,8 +18,5 @@ streamlit
 branca
 plotly
 seaborn
-joblib
 requests
 Pillow
-haversine
-scikit-learn==1.2.2
