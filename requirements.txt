@@ -1,9 +1,9 @@
-# 최신 파이썬 환경과 호환되는 안정적인 최신 버전으로 통일
-scikit-learn
-pandas
-numpy
+# 2023년 환경과 호환되는 안정적인 버전 조합
+scikit-learn==1.2.2
+pandas==1.5.3
+numpy==1.23.5
 
-# 나머지 필요한 라이브러리들
+# 나머지 라이브러리는 그대로 유지 (최신 버전 사용)
 geopy
 folium
 urllib3
