@@ -2,7 +2,7 @@ haversine
 pandas
 geopy
 folium
-tensorflow==2.13.1  # 명시적으로 Python 3.8과 numpy 1.23.5에 맞는 버전을 지정
+tensorflow==2.13.1  # ✅ TensorFlow 버전 고정 (Python 3.8 및 NumPy 1.23.5와 호환됨)
 urllib3
 streamlit
 branca
@@ -11,5 +11,5 @@ seaborn
 joblib
 requests
 Pillow
-scikit-learn==1.2.2
-numpy==1.23.5
+scikit-learn==1.2.2 # ✅ Scikit-learn 버전 유지 (Python 3.8에서 설치 성공)
+numpy==1.23.5      # ✅ NumPy 버전 유지 (TensorFlow 2.13.1과 호환됨)
