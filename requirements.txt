@@ -1,14 +1,14 @@
-# requirements.txt
+# requirements.txt 파일 내용
 
-# Ensure haversine is present and explicitly versioned
-haversine==1.1.1 
+# FIX 1: 유효하지 않은 haversine 버전(1.1.1)을 제거하고, 최신 버전 설치를 시도합니다.
+haversine
 
-# Core ML/Data Packages (MATCH THESE TO YOUR LOCAL ENVIRONMENT)
-scikit-learn==1.2.2
-numpy==1.23.5  # Example: Change this to your local version (e.g., pip show numpy)
-joblib==1.2.0  # Example: Change this to your local version
+# FIX 2: Python 3.8.2 환경과 일치시켜 joblib/scikit-learn 모델 로드 오류를 방지합니다.
+scikit-learn==1.2.2 
+numpy==1.23.5  # **중요:** 로컬 Python 3.8 환경에서 pip freeze로 확인한 정확한 numpy 버전으로 수정하세요.
+joblib==1.2.0  # **중요:** 로컬 Python 3.8 환경에서 pip freeze로 확인한 정확한 joblib 버전으로 수정하세요.
 
-# Remaining Packages
+# 나머지 라이브러리 목록
 pandas
 geopy
 folium
