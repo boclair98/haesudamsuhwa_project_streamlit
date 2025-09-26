@@ -13,4 +13,3 @@ requests
 Pillow
 haversine
 scikit-learn==1.2.2
-python
