@@ -1,8 +1,11 @@
-pandas
-numpy
+# scikit-learn 1.2.2와 호환되는 안정적인 numpy/pandas 버전 명시
+pandas==1.5.3
+numpy==1.23.5
+scikit-learn==1.2.2
+
+# 나머지 필요한 라이브러리들
 geopy
 folium
-tensorflow
 urllib3
 streamlit
 branca
@@ -12,4 +15,3 @@ joblib
 requests
 Pillow
 haversine
-scikit-learn==1.2.2
