@@ -11,5 +11,5 @@ seaborn
 joblib
 requests
 Pillow
-scikit-learn
 haversine
+scikit-learn==1.2.2
