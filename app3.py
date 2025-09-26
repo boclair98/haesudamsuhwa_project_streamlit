@@ -3,7 +3,7 @@ import numpy as np
 import datetime
 from geopy.geocoders import Nominatim
 from folium import plugins
-from keras.models import load_model # keras는 사용되지 않으므로 주석 처리 또는 삭제 가능
+#from keras.models import load_model # keras는 사용되지 않으므로 주석 처리 또는 삭제 가능
 from haversine import haversine
 from urllib.parse import quote
 import streamlit as st
@@ -446,5 +446,6 @@ with tab3:
     input_data_elec = [[input_tin, input_cod, input_tn, input_turbidity, input_pressure]]
     predicted_electricity = elec_model.predict(input_data_elec)
     st.success(f"예측된 전체 전력량: **{predicted_electricity[0]:.3f} kWh/m³**")
+
 
 
