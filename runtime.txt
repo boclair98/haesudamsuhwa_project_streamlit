@@ -1,0 +1,2 @@
+# runtime.txt 파일 내용
+python-3.8
