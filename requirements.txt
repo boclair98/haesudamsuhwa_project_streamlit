@@ -1,7 +1,7 @@
-# scikit-learn 1.2.2와 호환되는 안정적인 numpy/pandas 버전 명시
-pandas==1.5.3
-numpy==1.23.5
-scikit-learn==1.2.2
+# 최신 파이썬 환경과 호환되는 안정적인 최신 버전으로 통일
+scikit-learn
+pandas
+numpy
 
 # 나머지 필요한 라이브러리들
 geopy
