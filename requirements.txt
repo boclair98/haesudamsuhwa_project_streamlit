@@ -12,7 +12,6 @@ joblib==1.2.0  # **중요:** 로컬 Python 3.8 환경에서 pip freeze로 확인
 pandas
 geopy
 folium
-tensorflow
 urllib3
 streamlit
 branca
