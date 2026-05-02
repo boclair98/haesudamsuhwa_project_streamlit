@@ -1,15 +1,15 @@
-haversine
-pandas
-geopy
-folium
-tensorflow==2.13.1  # ✅ TensorFlow 버전 고정 (Python 3.8 및 NumPy 1.23.5와 호환됨)
-urllib3
 streamlit
-branca
+pandas
+numpy<2
+scikit-learn==1.2.2
+joblib
 plotly
 seaborn
-joblib
+matplotlib
+folium
+geopy
+haversine
+branca
 requests
 Pillow
-scikit-learn==1.2.2 # ✅ Scikit-learn 버전 유지 (Python 3.8에서 설치 성공)
-numpy==1.23.5      # ✅ NumPy 버전 유지 (TensorFlow 2.13.1과 호환됨)
+altair
