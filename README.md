@@ -6,6 +6,16 @@ RO 해수담수화 공정 데이터를 분석해 인입압력과 전력 사용�
 
 ## Preview
 
+### 고도화된 실시간 대시보드
+
+![고도화된 해수담수화 실시간 대시보드](docs/images/enhanced-dashboard.png)
+
+데이터·모델 상태 사이드바, 핵심 운영 지표 카드, RO 공정 흐름,
+에너지 사용량 게이지와 시간대별 추이를 한 화면에서 확인할 수 있습니다.
+
+<details>
+<summary>기존 화면별 미리보기</summary>
+
 ### 실시간 대시보드
 
 ![실시간 대시보드](docs/images/dashboard.png)
@@ -17,6 +27,8 @@ RO 해수담수화 공정 데이터를 분석해 인입압력과 전력 사용�
 ### 수질분석
 
 ![수질분석](docs/images/water-quality.png)
+
+</details>
 
 ## 프로젝트 배경
 
@@ -71,6 +83,7 @@ RO 해수담수화 공정 데이터를 분석해 인입압력과 전력 사용�
 ├── 해양환경공단_해양수질자동측정망_천수만(2021).csv
 ├── docs/
 │   └── images/
+│       ├── enhanced-dashboard.png
 │       ├── dashboard.png
 │       ├── production.png
 │       └── water-quality.png
