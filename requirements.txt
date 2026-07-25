@@ -13,3 +13,4 @@ branca
 requests
 Pillow
 altair
+python-dateutil

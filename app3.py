@@ -1,56 +1,35 @@
-import pandas as pd
-import numpy as np
 import datetime
-from geopy.geocoders import Nominatim
-from folium import plugins
-#from keras.models import load_model # keras는 사용되지 않으므로 주석 처리 또는 삭제 가능
-from haversine import haversine
-from urllib.parse import quote
+
+import pandas as pd
 import streamlit as st
-import folium
-import branca
-import geopy
-from geopy.geocoders import Nominatim
-import ssl
-from urllib.request import urlopen
-import matplotlib.pyplot as plt
-import seaborn as sns
-import calendar
 import plotly.express as px
-import joblib
-import requests
 from dateutil.relativedelta import relativedelta
 import plotly.graph_objects as go
-from PIL import Image
-import time
-import altair as alt
-from time import sleep
-import random
+
+from desalination.analytics import evaluate_models
+from desalination.domain import (
+    classify_energy,
+    production_progress,
+    quality_achievement,
+)
+from desalination.resources import (
+    PROJECT_ROOT,
+    ResourceError,
+    load_all_data,
+    load_prediction_models,
+)
 
 # 페이지 기본 설정
 st.set_page_config(layout="wide", page_title="해수 담수화 streamlit", page_icon="🎈")
 
 # --- 데이터 로딩 (앱 실행 시 한 번만 실행되도록 캐싱) ---
 # 데이터 파일이 크거나 로딩이 오래 걸리는 경우, st.cache_data를 사용하면 앱 성능이 향상됩니다.
-@st.cache_data
+@st.cache_data(show_spinner="공정 데이터를 불러오는 중입니다...")
 def load_data():
     try:
-        seawater_df = pd.read_csv('해양환경공단_해양수질자동측정망_천수만(2021).csv', encoding='cp949')
-        ro_df = pd.read_csv('RO공정데이터_0621.csv', encoding='cp949')
-        water_quality_df = pd.read_csv('수질만데이터.csv', encoding='cp949')
-        ro_monthly_df = pd.read_csv('RO공정데이터.csv', encoding='cp949')
-        seawater_quality_df = pd.read_csv('해수수질데이터.csv', encoding='cp949')
-        
-        # 날짜 타입 변환
-        seawater_df['관측일자'] = pd.to_datetime(seawater_df['관측일자'])
-        ro_df['일시'] = pd.to_datetime(ro_df['일시'])
-        water_quality_df['관측일자'] = pd.to_datetime(water_quality_df['관측일자'])
-        ro_monthly_df['관측일자'] = pd.to_datetime(ro_monthly_df['관측일자'])
-        seawater_quality_df['관측일자'] = pd.to_datetime(seawater_quality_df['관측일자'])
-
-        return seawater_df, ro_df, water_quality_df, ro_monthly_df, seawater_quality_df
-    except FileNotFoundError as e:
-        st.error(f"오류: '{e.filename}' 파일을 찾을 수 없습니다. 코드 파일과 동일한 위치에 파일이 있는지 확인해주세요.")
+        return load_all_data()
+    except ResourceError as exc:
+        st.error(str(exc))
         return None, None, None, None, None
 
 seawater, ro, df_quality, df_ro_monthly, df_seawater_quality = load_data()
@@ -58,18 +37,52 @@ seawater, ro, df_quality, df_ro_monthly, df_seawater_quality = load_data()
 # --- 모델 로딩 (앱 실행 시 한 번만 실행되도록 캐싱) ---
 @st.cache_resource
 def load_models():
-    pressure_model = joblib.load('LR_pressure.pkl')
-    elec_model = joblib.load('RF_elec.pkl')
-    return pressure_model, elec_model
+    try:
+        return load_prediction_models()
+    except ResourceError as exc:
+        st.error(str(exc))
+        return None
 
 # 데이터나 모델 로딩에 실패하면 앱 실행 중지
-if seawater is None or load_models() is None:
+models = load_models()
+if seawater is None or models is None:
     st.stop()
 
-pressure_model, elec_model = load_models()
-
+pressure_model, elec_model = models
 
 st.header("해수담수화 플랜트 A")
+
+with st.sidebar:
+    st.header("데이터·모델 상태")
+    st.metric("수질 관측 데이터", f"{len(seawater):,}건")
+    st.caption(
+        f"{seawater['관측일자'].min():%Y-%m-%d %H:%M} ~ "
+        f"{seawater['관측일자'].max():%Y-%m-%d %H:%M}"
+    )
+    required_columns = ["수온", "수소이온농도", "총인", "화학적산소요구량", "총질소", "탁도"]
+    missing_values = int(seawater[required_columns].isna().sum().sum())
+    st.metric("핵심 변수 결측치", f"{missing_values:,}건")
+
+    with st.expander("모델 진단 지표"):
+        try:
+            diagnostics = evaluate_models(pressure_model, elec_model, ro)
+            metric_col1, metric_col2 = st.columns(2)
+            metric_col1.metric(
+                "압력 MAE", f"{diagnostics['pressure']['mae']:.3f} bar"
+            )
+            metric_col2.metric(
+                "전력 MAE", f"{diagnostics['energy']['mae']:.3f} kWh/m³"
+            )
+            st.write(
+                f"압력 R²: `{diagnostics['pressure']['r2']:.3f}` · "
+                f"전력 R²: `{diagnostics['energy']['r2']:.3f}`"
+            )
+            st.caption(
+                "저장소의 과거 공정 데이터에 대한 적합도입니다. "
+                "별도 검증 데이터 성능으로 해석하면 안 됩니다."
+            )
+        except (ValueError, KeyError) as exc:
+            st.warning(f"모델 진단을 계산하지 못했습니다: {exc}")
 
 tab1, tab2, tab3 = st.tabs(['실시간 대시보드', '생산관리', '수질분석'])
 
@@ -79,15 +92,9 @@ tab1, tab2, tab3 = st.tabs(['실시간 대시보드', '생산관리', '수질분
 with tab1:
     st.write('### 실시간 대시보드')
     
-    # 현재 시간 기준으로 날짜/시간 초기값 설정 (데이터가 2021년 기준이므로 현재 시간에서 2년을 뺌)
-    # 실제 운영 시에는 now()를 그대로 사용
-    now = datetime.datetime.now()
-    # 데이터가 2021년이므로, 현재 날짜와 맞추기 위해 연도 차이를 계산
-    # 이 부분은 데이터의 연도에 맞게 유동적으로 조절해야 합니다.
-    year_diff = now.year - 2021 
-    
-    initial_time = now - relativedelta(years=year_diff)
-    before_one_hour_initial = initial_time - datetime.timedelta(hours=1)
+    # 시스템 시각을 과거 데이터 연도로 억지 변환하지 않고 실제 데이터 범위를 사용합니다.
+    min_time = seawater["관측일자"].min()
+    initial_time = seawater["관측일자"].max()
     
     ## ----- 날짜/시간 입력 cols 구성 -----
     st.markdown("")
@@ -95,7 +102,13 @@ with tab1:
     with col100:
         st.info('일시')
     with col101:
-        input_date = st.date_input(label='일시', value=initial_time.date(), label_visibility="collapsed")
+        input_date = st.date_input(
+            label='일시',
+            value=initial_time.date(),
+            min_value=min_time.date(),
+            max_value=initial_time.date(),
+            label_visibility="collapsed",
+        )
     with col102:
         st.info('시간')
     with col103:
@@ -109,8 +122,9 @@ with tab1:
     st.divider()
 
     # 날짜에 해당되는 수질 데이터(입력값) 추출
-    input_p = seawater.loc[seawater['관측일자'] == date_time, ['수온', '수소이온농도']]
-    input_e = seawater.loc[seawater['관측일자'] == date_time, ['총인', '화학적산소요구량', '총질소', '탁도']]
+    selected_seawater = seawater.loc[seawater['관측일자'] == date_time].head(1)
+    input_p = selected_seawater[['수온', '수소이온농도']]
+    input_e = selected_seawater[['총인', '화학적산소요구량', '총질소', '탁도']].copy()
 
     # =================================================================
     # 중요: 데이터가 있는지 확인하는 로직 추가 (ValueError 방지)
@@ -124,43 +138,43 @@ with tab1:
         col100, col101, col102, col103 = st.columns([0.1, 0.2, 0.1, 0.2])
         
         # 예측된 1차 인입압력
-        y_pred1 = pressure_model.predict(input_p)
+        predicted_pressure_value = float(pressure_model.predict(input_p)[0])
         
         # 예측된 전력량
-        input_e['1차 인입압력'] = y_pred1
-        y_pred2 = elec_model.predict(input_e)
+        input_e['1차 인입압력'] = predicted_pressure_value
+        predicted_energy_value = float(elec_model.predict(input_e)[0])
+        energy_status = classify_energy(predicted_energy_value)
 
         with col100:
             st.success('1차 인입압력  : ')
         with col101:
-            st.success(f"{round(float(y_pred1), 3)} bar")
+            st.success(f"{predicted_pressure_value:.3f} bar")
 
         with col102:
             st.success('사용 전력량    : ')
         with col103:
-            if y_pred2 >= 2.5 and y_pred2 < 3.5:
-                st.success(f"{round(float(y_pred2), 3)} kwh/m³")
-            elif y_pred2 >= 3.5 and y_pred2 <= 3.7:
-                st.warning(f"{round(float(y_pred2), 3)} kwh/m³")
-            elif y_pred2 > 3.7:
-                st.error(f"{round(float(y_pred2), 3)} kwh/m³")
+            if energy_status.level == "normal":
+                st.success(f"{predicted_energy_value:.3f} kWh/m³")
+            elif energy_status.level == "warning":
+                st.warning(f"{predicted_energy_value:.3f} kWh/m³")
+            else:
+                st.error(f"{predicted_energy_value:.3f} kWh/m³")
 
         # ----- 운전현황 및 게이지 차트 표시 -----
         col200, col201 = st.columns([0.6, 0.4])
         with col200:
             st.markdown("##### 운전현황")
-            if y_pred2 < 3.5:
-                st.image('대시보드 구성도_정상_w.png', caption='정상 운영')
-            elif y_pred2 <= 3.7:
-                st.image('대시보드 구성도_주의_w.png', caption='주의 단계')
-                st.warning("주의 단계 진입 : partial two pass로 전환 운영합니다.")
+            st.image(str(PROJECT_ROOT / energy_status.image_name), caption=f"{energy_status.label} 운영")
+            if energy_status.level == "normal":
+                st.success(energy_status.message)
+            elif energy_status.level == "warning":
+                st.warning(energy_status.message)
             else:
-                st.image('대시보드 구성도_이상_w.png', caption='경고 단계')
-                st.error("경고 단계 진입 : split partial two pass로 전환 운영합니다.")
+                st.error(energy_status.message)
         
         with col201:
             st.markdown("##### 예측 전력량 (kwh/m³)")
-            gauge_value = round(float(y_pred2), 2)
+            gauge_value = round(predicted_energy_value, 2)
             
             fig = go.Figure(go.Indicator(
                 mode="gauge+number",
@@ -226,9 +240,7 @@ with tab1:
         col_pie, col_achieve = st.columns([0.4, 0.6])
         with col_pie:
             st.markdown("##### 담수 생산률 (%)")
-            time_min = (date_time.hour * 60) + date_time.minute
-            amount = 83.33 * time_min
-            prod_percent = amount / 120000 * 100
+            prod_percent = production_progress(date_time.hour, date_time.minute)
             prod = pd.DataFrame({'names':['생산률', ' '], 'values':[prod_percent, 100-prod_percent]})
             
             fig = px.pie(prod, values='values', names='names', hole=0.7, color_discrete_sequence=['#79b0d7', '#E0E0E0'])
@@ -244,29 +256,26 @@ with tab1:
             st.markdown("##### 수질 달성률")
             selected_data = df_quality[df_quality['관측일자'] == date_time]
             if not selected_data.empty:
-                # 계산 로직은 제공된 원본 코드를 따름
-                inflow_turbidity = selected_data['탁도'].values[0]; processing_turbidity = selected_data['↓탁도'].values[0]; standard_turbidity = selected_data['기준 탁도'].values[0]
-                inflow_turbidity_standard_turbidity = inflow_turbidity if inflow_turbidity-standard_turbidity <= 1 else inflow_turbidity-standard_turbidity
-                processed_ratio = (inflow_turbidity-processing_turbidity) / (inflow_turbidity_standard_turbidity) if (inflow_turbidity-processing_turbidity) != 0 else 1
-                
-                inflow_CO = selected_data['화학적산소요구량'].values[0]; processing_CO = selected_data['↓화학적산소요구량'].values[0]; standard_CO = selected_data['기준 화학적산소요구량'].values[0]
-                inflow_CO_standard_CO = inflow_CO if inflow_CO-standard_CO <= 1 else inflow_CO-standard_CO
-                processed_ratio1 = (inflow_CO-processing_CO) / (inflow_CO_standard_CO) if (inflow_CO-processing_CO) != 0 else 1
+                row = selected_data.iloc[0]
+                achievement = {
+                    "탁도 달성률": quality_achievement(row["탁도"], row["↓탁도"], row["기준 탁도"]),
+                    "COD 달성률": quality_achievement(
+                        row["화학적산소요구량"],
+                        row["↓화학적산소요구량"],
+                        row["기준 화학적산소요구량"],
+                    ),
+                    "총질소 달성률": quality_achievement(
+                        row["총질소"], row["↓총질소"], row["기준 총질소"]
+                    ),
+                    "총인 달성률": quality_achievement(
+                        row["총인"], row["↓총인"], row["기준 총인"]
+                    ),
+                }
 
-                inflow_N = selected_data['총질소'].values[0]; processing_N = selected_data['↓총질소'].values[0]; standard_N = selected_data['기준 총질소'].values[0]
-                inflow_N_standard_N = inflow_N if inflow_N-standard_N <= 0.2 else inflow_N-standard_N
-                processed_ratio2 = (inflow_N-processing_N) / (inflow_N_standard_N) if (inflow_N-processing_N) != 0 else 1
-
-                inflow_P = selected_data['총인'].values[0]; processing_P = selected_data['↓총인'].values[0]; standard_P = selected_data['기준 총인'].values[0]
-                inflow_P_standard_P = inflow_P if inflow_P-standard_P <= 0.01 else inflow_P-standard_P
-                processed_ratio3 = (inflow_P-processing_P) / (inflow_P_standard_P) if (inflow_P-processing_P) != 0 else 1
-                
                 st.markdown("##") # 공백 추가
                 c1, c2, c3, c4 = st.columns(4)
-                c1.metric("탁도 달성률", f"{processed_ratio:.2%}")
-                c2.metric("COD 달성률", f"{processed_ratio1:.2%}")
-                c3.metric("총질소 달성률", f"{processed_ratio2:.2%}")
-                c4.metric("총인 달성률", f"{processed_ratio3:.2%}")
+                for column, (label, value) in zip((c1, c2, c3, c4), achievement.items()):
+                    column.metric(label, f"{value:.1%}")
             else:
                 st.info("해당 시간의 수질 달성률 데이터가 없습니다.")
 
@@ -278,18 +287,20 @@ with tab2:
     
     # 데이터가 비어있지 않은지 먼저 확인
     if df_ro_monthly is not None:
-        df_ro_monthly.dropna(axis=0, inplace=True)
-        
+        ro_monthly_clean = df_ro_monthly.dropna(axis=0).copy()
+
         # 사용자로부터 날짜 입력 받기
-        min_date = df_ro_monthly['관측일자'].min().date()
-        max_date = df_ro_monthly['관측일자'].max().date()
+        min_date = ro_monthly_clean['관측일자'].min().date()
+        max_date = ro_monthly_clean['관측일자'].max().date()
         default_date = max_date # 기본값을 최신 날짜로 설정
         
         selected_date = st.date_input("기준 날짜 선택", value=default_date, min_value=min_date, max_value=max_date, key="tab2_date")
         selected_date = pd.to_datetime(selected_date)
 
         # 선택한 날짜까지 필터링
-        filtered_data = df_ro_monthly[df_ro_monthly['관측일자'].dt.date <= selected_date.date()].copy()
+        filtered_data = ro_monthly_clean[
+            ro_monthly_clean['관측일자'].dt.date <= selected_date.date()
+        ].copy()
         
         # '관측월' 컬럼 생성
         filtered_data['관측월'] = filtered_data['관측일자'].dt.to_period('M').astype(str)
@@ -363,8 +374,9 @@ with tab3:
         selected_month = st.radio('월 선택', range(1, 13), format_func=lambda x: f"{x}월", index=datetime.datetime.now().month - 1)
     
     # df_ro_monthly 데이터프레임의 '관측일자'에서 월을 추출하여 '관측월' 컬럼 추가
-    df_ro_monthly['관측월'] = df_ro_monthly['관측일자'].dt.month
-    month_data = df_ro_monthly[df_ro_monthly['관측월'] == selected_month]
+    ro_for_quality = df_ro_monthly.copy()
+    ro_for_quality['관측월'] = ro_for_quality['관측일자'].dt.month
+    month_data = ro_for_quality[ro_for_quality['관측월'] == selected_month]
 
     with col_chart1:
         fig = px.line(month_data, x='관측일자', y='수온', title=f'{selected_month}월 수온 추이', markers=True)
@@ -380,9 +392,9 @@ with tab3:
     # 월별 평균 수질 데이터 시각화
     st.markdown("##### 월별 평균 원수 수질")
     if df_seawater_quality is not None:
-        df_seawater_quality.dropna(axis=0, inplace=True)
-        df_seawater_quality['관측월'] = df_seawater_quality['관측일자'].dt.to_period('M').astype(str)
-        monthly_seawater_data = df_seawater_quality.groupby('관측월').mean(numeric_only=True).reset_index()
+        seawater_quality_clean = df_seawater_quality.dropna(axis=0).copy()
+        seawater_quality_clean['관측월'] = seawater_quality_clean['관측일자'].dt.to_period('M').astype(str)
+        monthly_seawater_data = seawater_quality_clean.groupby('관측월').mean(numeric_only=True).reset_index()
 
         col202, col203 = st.columns(2)
         with col202:
@@ -418,9 +430,12 @@ with tab3:
         input_concentration = st.slider("수소이온농도를 입력하세요:", min_value=7.0, max_value=9.0, value=8.0, step=0.1)
     
     # 2D 배열 형태로 모델에 입력
-    input_data_pressure = [[input_temperature, input_concentration]]
-    predicted_pressure = pressure_model.predict(input_data_pressure)
-    st.success(f"예측된 1차 인입압력: **{predicted_pressure[0]:.3f} bar**")
+    input_data_pressure = pd.DataFrame(
+        [[input_temperature, input_concentration]],
+        columns=["수온", "수소이온농도"],
+    )
+    simulated_pressure = float(pressure_model.predict(input_data_pressure)[0])
+    st.success(f"예측된 1차 인입압력: **{simulated_pressure:.3f} bar**")
 
     st.markdown("---")
 
@@ -431,7 +446,13 @@ with tab3:
 
     with col208:
         # 이전에 예측된 인입압력 값을 기본값으로 사용
-        input_pressure = st.slider("1차 인입압력을 입력하세요: ", min_value=30.0, max_value=70.0, value=float(predicted_pressure[0]), step=0.1)
+        input_pressure = st.slider(
+            "1차 인입압력을 입력하세요: ",
+            min_value=30.0,
+            max_value=70.0,
+            value=min(max(simulated_pressure, 30.0), 70.0),
+            step=0.1,
+        )
     with col209:
         input_tin = st.slider("총인(mg/L)을 입력하세요:", min_value=0.0, max_value=0.1, value=0.02, step=0.001, format="%.3f")
     with col210:
@@ -443,9 +464,19 @@ with tab3:
     input_turbidity = st.slider("탁도(NTU)를 입력하세요:", min_value=0.0, max_value=5.0, value=1.0, step=0.1)
 
     # 모델 입력 순서: ['총인', '화학적산소요구량', '총질소', '탁도', '1차 인입압력']
-    input_data_elec = [[input_tin, input_cod, input_tn, input_turbidity, input_pressure]]
-    predicted_electricity = elec_model.predict(input_data_elec)
-    st.success(f"예측된 전체 전력량: **{predicted_electricity[0]:.3f} kWh/m³**")
+    input_data_elec = pd.DataFrame(
+        [[input_tin, input_cod, input_tn, input_turbidity, input_pressure]],
+        columns=["총인", "화학적산소요구량", "총질소", "탁도", "1차 인입압력"],
+    )
+    simulated_energy = float(elec_model.predict(input_data_elec)[0])
+    simulated_status = classify_energy(simulated_energy)
+    st.success(f"예측된 전체 전력량: **{simulated_energy:.3f} kWh/m³**")
+    if simulated_status.level == "normal":
+        st.info(f"운영 판정: **{simulated_status.label}** · {simulated_status.message}")
+    elif simulated_status.level == "warning":
+        st.warning(f"운영 판정: **{simulated_status.label}** · {simulated_status.message}")
+    else:
+        st.error(f"운영 판정: **{simulated_status.label}** · {simulated_status.message}")
 
 
 
