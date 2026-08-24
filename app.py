@@ -1,825 +1,764 @@
+from __future__ import annotations
+
 import pandas as pd
-import numpy as np
-import datetime
-from geopy.geocoders import Nominatim
-from folium import plugins
-from keras.models import load_model
-from haversine import haversine
-from urllib.parse import quote
 import streamlit as st
-import folium
-import branca
-import geopy
-from geopy.geocoders import Nominatim
-import ssl
-from urllib.request import urlopen
-import matplotlib.pyplot as plt
-import seaborn as sns
-import calendar
-import plotly.express as px
-import joblib
-import requests
-from dateutil.relativedelta import relativedelta
-import plotly.graph_objects as go
-from PIL import Image
-import time
 
-from time import sleep
-import random
-st.set_page_config(layout="wide", page_title="해수 담수화 streamlit", page_icon="🎈")
+from desalination.analytics import (
+    anomaly_watchlist,
+    diagnostics,
+    enrich_history,
+    monthly_summary,
+    percentile_rank,
+    predict_scenario,
+    support_ranges,
+)
+from desalination.charts import (
+    error_watch_figure,
+    local_trend_figure,
+    monthly_operations_figure,
+    monthly_quality_figure,
+    observation_density_figure,
+    sec_context_figure,
+    sensitivity_figure,
+)
+from desalination.resources import ResourceError, load_history, load_models
 
-tab1,tab2,tab3 = st.tabs(['실시간 대시보드','생산관리','수질분석'])
-with tab1:
-    def style_metric_cards(
-        background_color: str = "#FFF",
-        border_size_px: int = 1,
-        border_color: str = "#CCC",
-        border_radius_px: int = 5,
-        border_left_color: str = "#9AD8E1",  # Update the border_left_color to black
-        box_shadow: bool = True,
-    ):
-        box_shadow_str = (
-            "box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15) !important;"
-            if box_shadow
-            else "box-shadow: none !important;"
+
+st.set_page_config(
+    page_title="RO Lens · 해수담수화 공정 분석",
+    page_icon="🌊",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+st.markdown(
+    """
+    <style>
+    :root {
+        --ink: #102a43;
+        --muted: #61758a;
+        --teal: #0f8b8d;
+        --teal-soft: #dff4f2;
+        --violet: #7c3aed;
+        --sky: #0ea5e9;
+        --line: #dce7ef;
+        --panel: #ffffff;
+        --canvas: #f4f8fb;
+    }
+    html, body, [class*="css"] {
+        font-family: Inter, Pretendard, "Noto Sans KR", "Malgun Gothic", Arial, sans-serif;
+    }
+    .stApp { background: var(--canvas); color: var(--ink); }
+    [data-testid="stHeader"] { height: 0; background: transparent; }
+    [data-testid="stToolbar"], [data-testid="stDecoration"] { display: none !important; }
+    .block-container { max-width: 1240px; padding-top: 1.6rem; padding-bottom: 4rem; }
+    #MainMenu, footer { visibility: hidden; }
+    h1, h2, h3 { color: var(--ink); letter-spacing: -0.025em; }
+    p, label, .stCaption { color: var(--muted); }
+    a { color: #087f8c !important; }
+    .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 32px 34px;
+        margin-bottom: 18px;
+        border-radius: 24px;
+        color: white;
+        background:
+            radial-gradient(circle at 88% 12%, rgba(56,189,248,.35), transparent 30%),
+            linear-gradient(120deg, #082f49 0%, #0f5265 52%, #0f766e 100%);
+        box-shadow: 0 18px 44px rgba(8,47,73,.15);
+    }
+    .hero:after {
+        content: "";
+        position: absolute;
+        width: 290px; height: 290px; right: -90px; bottom: -190px;
+        border: 42px solid rgba(255,255,255,.08); border-radius: 50%;
+    }
+    .hero-kicker { font-size: .78rem; font-weight: 800; letter-spacing: .14em; opacity: .82; }
+    .hero h1 { margin: 8px 0 8px; color: white; font-size: clamp(2rem, 4vw, 3.3rem); }
+    .hero p { max-width: 760px; margin: 0; color: rgba(255,255,255,.82); font-size: 1rem; line-height: 1.7; }
+    .badges { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 20px; }
+    .badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        border: 1px solid rgba(255,255,255,.24); border-radius: 999px;
+        padding: 7px 11px; color: white; background: rgba(255,255,255,.10);
+        font-size: .78rem; font-weight: 700;
+    }
+    .trustbar {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+        margin: 2px 0 22px;
+    }
+    .trustitem {
+        padding: 13px 15px; border: 1px solid var(--line); border-radius: 14px;
+        background: rgba(255,255,255,.72); color: var(--muted); font-size: .79rem;
+    }
+    .trustitem strong { display: block; margin-top: 3px; color: var(--ink); font-size: .94rem; }
+    div[role="radiogroup"] {
+        display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; margin-bottom: 16px;
+        border: 1px solid var(--line); border-radius: 14px; background: white;
+    }
+    div[role="radiogroup"] label {
+        padding: 4px 12px; border-radius: 10px;
+    }
+    [data-testid="stMetric"] {
+        min-height: 126px; padding: 18px 18px 14px;
+        border: 1px solid var(--line); border-radius: 16px; background: var(--panel);
+        box-shadow: 0 7px 18px rgba(15,35,55,.035);
+    }
+    [data-testid="stMetricLabel"] { color: var(--muted); }
+    [data-testid="stMetricValue"] { color: var(--ink); letter-spacing: -.035em; }
+    [data-testid="stPlotlyChart"], [data-testid="stDataFrame"] {
+        border: 1px solid var(--line); border-radius: 18px; background: white;
+        padding: 6px; overflow: hidden;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border-color: var(--line) !important; border-radius: 18px !important;
+        background: rgba(255,255,255,.84);
+    }
+    .section-head { margin: 28px 0 14px; }
+    .section-kicker { color: var(--teal); font-size: .75rem; font-weight: 900; letter-spacing: .12em; }
+    .section-head h2 { margin: 4px 0 4px; font-size: 1.55rem; }
+    .section-head p { margin: 0; font-size: .9rem; }
+    .flow-grid {
+        display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 10px;
+        margin: 8px 0 4px;
+    }
+    .flow-step {
+        position: relative; min-height: 112px; padding: 16px;
+        border: 1px solid var(--line); border-radius: 16px; background: white;
+    }
+    .flow-step:after {
+        content: "→"; position: absolute; right: -15px; top: 42px; z-index: 2;
+        width: 20px; height: 20px; color: var(--teal); font-weight: 900;
+    }
+    .flow-step:last-child:after { display: none; }
+    .flow-index { color: var(--teal); font-weight: 900; font-size: .72rem; letter-spacing: .08em; }
+    .flow-name { margin-top: 6px; color: var(--ink); font-weight: 800; }
+    .flow-value { margin-top: 8px; color: var(--muted); font-size: .8rem; line-height: 1.45; }
+    .note-card {
+        padding: 18px 20px; border-left: 4px solid var(--teal); border-radius: 4px 14px 14px 4px;
+        background: var(--teal-soft); color: #155e62; line-height: 1.65; font-size: .9rem;
+    }
+    .model-card {
+        height: 100%; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: white;
+    }
+    .model-card .eyebrow { color: var(--violet); font-weight: 900; font-size: .74rem; letter-spacing: .09em; }
+    .model-card h3 { margin: 6px 0 10px; font-size: 1.08rem; }
+    .model-card p { margin: 5px 0; font-size: .84rem; line-height: 1.55; }
+    .footer-note { margin-top: 42px; padding-top: 16px; border-top: 1px solid var(--line); font-size: .78rem; color: var(--muted); }
+    @media (max-width: 820px) {
+        .block-container { padding: 1rem 1rem 3rem; }
+        .hero { padding: 24px 22px; border-radius: 18px; }
+        .trustbar { grid-template-columns: repeat(2, 1fr); }
+        .flow-grid { grid-template-columns: 1fr; }
+        .flow-step:after { content: "↓"; right: 50%; top: auto; bottom: -18px; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+PLOT_CONFIG = {
+    "displayModeBar": False,
+    "displaylogo": False,
+    "responsive": True,
+}
+
+
+@st.cache_data(show_spinner="정제 공정 기록을 준비하는 중입니다…")
+def cached_history():
+    return load_history()
+
+
+@st.cache_resource(show_spinner="검증된 모델을 불러오는 중입니다…")
+def cached_models():
+    return load_models()
+
+
+@st.cache_data(show_spinner="전체 기록의 모델 추정치를 계산하는 중입니다…")
+def cached_enriched(frame, _pressure_model, _sec_model):
+    return enrich_history(frame, _pressure_model, _sec_model)
+
+
+def section(kicker: str, title: str, description: str = "") -> None:
+    st.markdown(
+        f"""
+        <div class="section-head">
+          <div class="section-kicker">{kicker}</div>
+          <h2>{title}</h2>
+          <p>{description}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def delta_text(
+    current: float,
+    previous: float | None,
+    unit: str,
+    comparison_label: str | None = "전월",
+) -> str | None:
+    if previous is None:
+        return None
+    difference = current - previous
+    sign = "+" if difference > 0 else ""
+    label = comparison_label or "비교"
+    return f"{label} 대비 {sign}{difference:.2f} {unit}".strip()
+
+
+def plot(fig) -> None:
+    st.plotly_chart(fig, width="stretch", config=PLOT_CONFIG)
+
+
+try:
+    history, profile = cached_history()
+    models = cached_models()
+    history = cached_enriched(history, models.pressure, models.sec)
+except ResourceError as exc:
+    st.error(f"대시보드를 시작하지 못했습니다: {exc}")
+    st.stop()
+
+model_diagnostics = diagnostics(history)
+monthly = monthly_summary(history)
+ranges = support_ranges(history)
+start_time = history["timestamp"].min()
+end_time = history["timestamp"].max()
+
+st.markdown(
+    f"""
+    <div class="hero">
+      <div class="hero-kicker">RO LENS · PROCESS EXPLORER</div>
+      <h1>해수담수화 공정 분석 데모</h1>
+      <p>2021년 천수만 원수 관측자료와 저장소의 RO 샘플 공정 기록을 바탕으로
+      1단 인입압력과 비에너지소비량(SEC)을 탐색합니다. 실제 설비 제어와 연결되지 않습니다.</p>
+      <div class="badges">
+        <span class="badge">● 연구용 데모</span>
+        <span class="badge">2021 기록 데이터</span>
+        <span class="badge">실시간 설비 연동 아님</span>
+        <span class="badge">모델 추정값 별도 표시</span>
+      </div>
+    </div>
+    <div class="trustbar">
+      <div class="trustitem">사용 가능한 공정 기록<strong>{len(history):,}건</strong></div>
+      <div class="trustitem">기록 기간<strong>{start_time:%Y-%m-%d} — {end_time:%Y-%m-%d}</strong></div>
+      <div class="trustitem">압력 모델 전체기록 MAE<strong>{model_diagnostics['pressure']['mae']:.2f} bar</strong></div>
+      <div class="trustitem">연쇄 SEC 모델 전체기록 MAE<strong>{model_diagnostics['sec_chain']['mae']:.2f} kWh/m³</strong></div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+page = st.radio(
+    "대시보드 메뉴",
+    ["운전 스냅샷", "기간 성과", "예측 실험실", "운영 인사이트", "데이터·모델 카드"],
+    horizontal=True,
+    label_visibility="collapsed",
+)
+
+
+if page == "운전 스냅샷":
+    section(
+        "HISTORICAL REPLAY",
+        "실제 존재하는 기록 시점만 탐색",
+        "기록값과 모델 추정값을 같은 시점에서 비교합니다.",
+    )
+    dates = sorted(history["timestamp"].dt.date.unique(), reverse=True)
+    filter_col1, filter_col2, filter_col3 = st.columns([1.2, 1, 1.8])
+    with filter_col1:
+        selected_date = st.selectbox(
+            "기록 날짜",
+            dates,
+            format_func=lambda value: value.strftime("%Y년 %m월 %d일"),
         )
-# 데이터 불러오기
-    seawater = pd.read_csv('해양환경공단_해양수질자동측정망_천수만(2021).csv', encoding='cp949') # 수질 데이터
-    ro = pd.read_csv('RO공정데이터_0621.csv', encoding='cp949') # RO공정 데이터
-    
-# 관측일자 object 타입 -> datetime 타입으로 변환
-    seawater['관측일자'] = pd.to_datetime(seawater['관측일자'])
-    ro['일시'] = pd.to_datetime(ro['일시'])
-    
-# 현재 시간
-    now = datetime.datetime.now()
-    before_two_year = now - relativedelta(years=2)
-    before_one_month = now - relativedelta(years=2, months=1)
-    before_one_hour = now - datetime.timedelta(hours=1)
-    before_one_hour = before_one_hour - relativedelta(years=2)
-    before_one_hour = before_one_hour.strftime('%Y-%m-%d %H:00:00')
-    before_one_hour = pd.to_datetime(before_one_hour)
-
-    st.header("해수담수화 플랜트 A")
-    
-    ## ----- 날짜/시간 입력 cols 구성 -----
-    st.markdown("")
-    
-    col100, col101, col102, col103 = st.columns([0.1, 0.3, 0.1, 0.3])
-    with col100:
-        st.info('일시')
-    with col101:
-        input_date = st.date_input(label='일시', value=before_two_year, label_visibility="collapsed")
-    with col102:
-        st.info('시간')
-    with col103:
-        input_time = st.time_input(label='시간', value=before_two_year, step=3600, label_visibility="collapsed")
-    
-    # 입력받은 날짜/시간 합쳐서 datetime타입으로 변환
-    date = input_date.strftime('%Y-%m-%d')
-    time = input_time.strftime('%H:00:00')
-    date_time = date + ' ' + time
-    date_time = pd.to_datetime(date_time)
-    
-   
-    st.divider() # 분리줄(가로줄)
-    
-    
-    # 날짜에 해당되는 수질 데이터(입력값) 추출
-    input_p = seawater.loc[seawater['관측일자'] == date_time, ['수온', '수소이온농도']]
-    input_e = seawater.loc[seawater['관측일자'] == date_time, ['총인', '화학적산소요구량', '총질소', '탁도']]
-    
-    # 예측 모델 불러오기
-    pressure_model = joblib.load('LR_pressure.pkl') # '1차 인입압력' 예측 모델
-    elec_model = joblib.load('RF_elec.pkl') # '전체 전력량' 예측 모델
-    
-    ## ----- 예측값 표시 -----
-    st.markdown("")
-    st.markdown("##### 예측값 :blue[(자동 적용중)]")
-    
-    col100, col101, col102, col103 = st.columns([0.1, 0.2, 0.1, 0.2])
-    with col100:
-        st.success('1차 인입압력  : ')
-        
-    with col101:
-        # 예측된 1차 인입압력
-        y_pred1 = pressure_model.predict(input_p)
-        st.success(round(float(y_pred1), 3))    
-    
-    with col102:
-        st.success('사용 전력량   : ')
-        
-    with col103:
-        # 예측된 전력량
-        input_e['1차 인입압력'] = y_pred1
-        y_pred2 = elec_model.predict(input_e)
-        st.success(round(float(y_pred2), 3))
-    
-    
-
-    ## ----- 적용중인 1차 인입압력, 1차 인입압력에 따른 사용 전력량 표시 (+ 1시간 전 대비 값의 변화 표시) -----
-    col200, col201 = st.columns([0.6, 0.3])
- 
-
-    with col200:
-        st.markdown("##### 운전현황")
-        if y_pred2>=2.5 and y_pred2<3.5:
-            image_g = Image.open('대시보드 구성도_정상.png')
-            st.image(image_g)
-            st.warning("주의 단계 진입 : partial two pass로 전환 운영합니다.")
-            
-        elif y_pred2>=3.5 and y_pred2<=3.6:
-            image = Image.open('대시보드 구성도_주의.png')
-            st.image(image)
-            st.warning("주의 단계 진입 : partial two pass로 전환 운영합니다.")
-            
-        elif y_pred2>3.6:
-            image = Image.open('대시보드 구성도_이상.png')
-            st.image(image)
-            st.error("경고 단계 진입 : split partial two pass로 전환 운영합니다.")
-        
-    with col201:
-        st.markdown("##### 사용 전력량 (kwh/m3)")   
-    
-        # 전력량 게이지 차트
-        elec = ro.loc[ro['일시'] == date_time, '전체 전력량']
-        
-        if y_pred2>=2.5 and y_pred2<3.5:
-            fig = go.Figure(go.Indicator(
-                domain={'x': [0, 1], 'y': [0, 1]},
-                value=0,
-                mode="gauge",
-                gauge={'axis': {'range': [2, 4]},
-                       'steps': [
-                           {'range': [2, 2.3], 'color': "#d77981"},
-                           {'range': [2.3, 2.5], 'color': "#f4e291"},
-                           {'range': [2.5, 3.5], 'color': "#b0d779"},
-                           {'range': [3.5, 3.7], 'color': "#f4e291"},
-                           {'range': [3.7, 4], 'color': "#d77981"}],
-                       'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': .8, 'value': round(float(y_pred2), 2)}}))
-        
-            fig.update_layout(annotations=[dict(text=round(float(y_pred2), 2), 
-                                                x=0.49, 
-                                                y=0.15, 
-                                                font=dict(size=37, color='black'), 
-                                                showarrow=False)],
-                             autosize =False, width=550, height=290)
-            fig.add_annotation(text='(kwh/m3)', 
-                               x=0.494, 
-                               y=0.07, 
-                               font=dict(size=15, color='black'), 
-                               showarrow=False)
-        
-            st.plotly_chart(fig)
-        
-        elif y_pred2>=3.5 and y_pred2<3.7:
-            fig = go.Figure(go.Indicator(
-                domain={'x': [0, 1], 'y': [0, 1]},
-                value=0,
-                mode="gauge",
-                gauge={'axis': {'range': [2, 4]},
-                       'steps': [
-                           {'range': [2, 2.3], 'color': "#d77981"},
-                           {'range': [2.3, 2.5], 'color': "#f4e291"},
-                           {'range': [2.5, 3.5], 'color': "#b0d779"},
-                           {'range': [3.5, 3.7], 'color': "#f4e291"},
-                           {'range': [3.7, 4], 'color': "#d77981"}],
-                       'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': .8, 
-                                     'value': round(round(float(y_pred2), 2) - 0.14, 2)}}))
-        
-            fig.update_layout(annotations=[dict(text=round(round(float(y_pred2), 2) - 0.14, 2), 
-                                                x=0.49, 
-                                                y=0.15, 
-                                                font=dict(size=37, color='black'), 
-                                                showarrow=False)],
-                             autosize =False, width=550, height=290)
-            
-            fig.add_annotation(text='(kwh/m3)', 
-                               x=0.494, 
-                               y=0.07, 
-                               font=dict(size=15, color='black'), 
-                               showarrow=False)
-            
-            fig.add_annotation(text='▼ 0.14', 
-                               x=0.49, 
-                               y=-.2, 
-                               font=dict(size=25, color='red'), 
-                               showarrow=False)            
-        
-            st.plotly_chart(fig)
-        
-        elif y_pred2>=3.7:
-            fig = go.Figure(go.Indicator(
-                domain={'x': [0, 1], 'y': [0, 1]},
-                value=0,
-                mode="gauge",
-                gauge={'axis': {'range': [2, 4]},
-                       'steps': [
-                           {'range': [2, 2.3], 'color': "#d77981"},
-                           {'range': [2.3, 2.5], 'color': "#f4e291"},
-                           {'range': [2.5, 3.5], 'color': "#b0d779"},
-                           {'range': [3.5, 3.7], 'color': "#f4e291"},
-                           {'range': [3.7, 4], 'color': "#d77981"}],
-                       'threshold': {'line': {'color': "red", 'width': 4}, 'thickness': .8, 
-                                     'value': round(round(float(y_pred2), 2) - 0.29, 3)}}))
-        
-            fig.update_layout(annotations=[dict(text=round(round(float(y_pred2), 2) - 0.29, 3), 
-                                                x=0.49, 
-                                                y=0.15, 
-                                                font=dict(size=37, color='black'), 
-                                                showarrow=False)],
-                             autosize =False, width=550, height=290)
-            fig.add_annotation(text='(kwh/m3)', 
-                               x=0.494, 
-                               y=0.07, 
-                               font=dict(size=15, color='black'), 
-                               showarrow=False)
-            
-            fig.add_annotation(text='▼ 0.29', 
-                               x=0.49, 
-                               y=-.2, 
-                               font=dict(size=25, color='red'), 
-                               showarrow=False)
-        
-            st.plotly_chart(fig)
-    # 실시간 정보
-    st.markdown(" ")
-    st.markdown("##### 실시간 정보")
-    chart_data = pd.DataFrame(columns=['Date', '최적화된 전력', '기존 전력'])
-    chart = st.line_chart(chart_data)
-    start_button = st.button("Start")
-    stop_button = st.button("Stop")
-
-    if start_button:
-        while True:
-            now = datetime.datetime.now()
-            current_time = now.strftime('%H:%M')
-
-        # Filter seawater DataFrame for rows with time greater than or equal to the current time
-            input_p = seawater.loc[seawater['관측일자'] >= current_time, ['수온', '수소이온농도']]
-            input_e = seawater.loc[seawater['관측일자'] >= current_time, ['총인', '화학적산소요구량', '총질소', '탁도']]
-
-            if input_p.empty or input_e.empty:
-                y_pred1 = random.uniform(3.0, 3.45) - 0.29  # Default value
-                y_pred2 = random.uniform(3.2, 3.75)  # Default value
-            else:
-            # Preprocess or transform the input data for prediction
-                y_pred1 = pressure_model.predict(input_p)
-                input_e['1차 인입압력'] = y_pred1
-                y_pred2 = elec_model.predict(input_e)
-
-        # Create new data entries
-            new_data = pd.DataFrame({'Date': [now], '최적화된 전력': [y_pred1], '기존 전력': [y_pred2]})
-
-        # Append new data to the existing DataFrame
-            chart_data = pd.concat([chart_data, new_data], ignore_index=True)
-
-        # Limit the chart data to the last 1 hour
-            one_hour_ago = now - datetime.timedelta(hours=1)
-            chart_data = chart_data[chart_data['Date'] >= one_hour_ago]
-
-        # Update the chart
-            chart.line_chart(chart_data, x='Date', y=['최적화된 전력', '기존 전력'])
-            sleep(1)
-
-            if stop_button:
-                break
-# 스트림릿 애플리케이션
-    st.warning("예측이 중지되었습니다.")
-
-    col200, col201, col202 = st.columns([0.25, 0.25, 0.5])
-    with col200:
-        st.markdown("##### :green[RO공정]")  
-        st.markdown("#")
-        st.markdown("##")
-        tem = ro.loc[ro['일시'] == date_time, '1차 인입압력'] # 현재 날짜와 일치하는 1차 인입압력
-        tem_1 = ro.loc[ro['일시'] == before_one_hour, '1차 인입압력'] # 현재 날짜 기준 한시간 전의 1차 인입압력
-
-        col200.metric(label="1차 인입압력", value=tem, delta=round(float(tem.values - tem_1.values),2))
-
-
-        st.markdown("#")
-
-
-        tem = ro.loc[ro['일시'] == date_time, '2차 인입압력'] # 현재 날짜와 일치하는 2차 인입압력
-        tem_1 = ro.loc[ro['일시'] == before_one_hour, '2차 인입압력'] # 현재 날짜 기준 한시간 전의 2차 인입압력
-
-        col200.metric(label="2차 인입압력", value=tem, delta=round(float(tem.values - tem_1.values),2))
-
-    with col201:
-        st.markdown("#") 
-        st.markdown("#") 
-        st.markdown("#")
-
- 
-
-        tem = ro.loc[ro['일시'] == date_time, '2차 생산수 TDS'] # 현재 날짜와 일치하는 최종 생산수 TDS
-        tem_1 = ro.loc[ro['일시'] == before_one_hour, '2차 생산수 TDS'] # 현재 날짜 기준 한시간 전의 최종 생산수 TDS
-
-        col201.metric(label="최종 생산수 TDS", value=tem, delta=round(float(tem.values - tem_1.values),2))
-        
-        st.markdown("#")
-            
-            
-        tem = ro.loc[ro['일시'] == date_time, '전체 전력량'] # 현재 날짜와 일치하는 전체 전력량
-        tem_1 = ro.loc[ro['일시'] == before_one_hour, '전체 전력량'] # 현재 날짜 기준 한시간 전의 전체 전력량
-        
-        col201.metric(label="사용 전력량", value=tem, delta=round(float(tem.values - tem_1.values),2))
-        
-    
-    with col202:
-        st.markdown("##### 담수 생산률 (%)")
-        
-        # 담수 생산률
-        time = (date_time.hour * 60) + date_time.minute
-        amount = 83.33 * time
-        prod = pd.DataFrame({'names':['생산률', ' '], 'values':[amount/120000*100, 100-(amount/120000*100)]})
-        
-        fig = px.pie(prod, 
-                     values='values', 
-                     names='names', 
-                     title = ' ', 
-                     hole = 0.7, 
-                     color_discrete_sequence = ['#79b0d7', 'rgba(211, 211, 211, 1.0)'])
-        fig.update_traces(hoverinfo='label+percent+name', textinfo='none')
-        fig.update(layout_showlegend=False)
-        fig.update_layout(annotations=[dict(text=str(round(amount/120000*100, 2))+"%", 
-                                            x=0.5, 
-                                            y=0.5, 
-                                            font=dict(size=40, color='black'), 
-                                            showarrow=False)],
-                         title_x=0.42)
-        
-        st.plotly_chart(fig)    
-    
-    
-    
-    
-    st.markdown("##### :blue[수질]")    
-    # 수질 달성률
-    df = pd.read_csv('수질만데이터.csv', encoding='cp949')
-    
-    df['관측일자'] = pd.to_datetime(df['관측일자'])
-
-    # 선택한 관측일자에 해당하는 데이터 필터링
-    selected_data = df[df['관측일자'] == date_time]
-
- 
-
-    # 유입 탁도, 처리중 탁도, 기준 탁도 값 가져오기
-    inflow_turbidity = selected_data['탁도'].values[0]
-    processing_turbidity = selected_data['↓탁도'].values[0]
-    standard_turbidity = selected_data['기준 탁도'].values[0]
-    #달성률 = ((5 - 4) / 4) * 100 = (1 / 4) * 100 = 25%
-
- 
-
-
-    if inflow_turbidity-standard_turbidity <= 1:
-        inflow_turbidity_standard_turbidity = inflow_turbidity
-    else:
-        inflow_turbidity_standard_turbidity = inflow_turbidity-standard_turbidity
-
-    processed_ratio = (inflow_turbidity-processing_turbidity) / (inflow_turbidity_standard_turbidity)
-    if inflow_turbidity-processing_turbidity ==0:
-        processed_ratio = 1
-    reducing_ratio = 1-processed_ratio
-
- 
-
-
-    # 유입 화학적산소요구량, 처리중 화학적산소요구량, 기준 화학적산소요구량 값 가져오기
-    inflow_CO = selected_data['화학적산소요구량'].values[0]
-    processing_CO = selected_data['↓화학적산소요구량'].values[0]
-    standard_CO = selected_data['기준 화학적산소요구량'].values[0]
-    #달성률 = ((5 - 4) / 4) * 100 = (1 / 4) * 100 = 25%
-    #1/0.37
-    if inflow_CO-standard_CO <= 1:
-        inflow_CO_standard_CO = inflow_CO
-    else:
-        inflow_CO_standard_CO = inflow_CO-standard_CO
-    processed_ratio1 = (inflow_CO-processing_CO) / (inflow_CO_standard_CO)
-    if inflow_CO-processing_CO ==0:
-        processed_ratio1 = 1
-    reducing_ratio1 = 1-processed_ratio1
-
- 
-
-    ###총질소
-    inflow_N = selected_data['총질소'].values[0]
-    processing_N = selected_data['↓총질소'].values[0]
-    standard_N = selected_data['기준 총질소'].values[0]
-    #달성률 = ((5 - 4) / 4) * 100 = (1 / 4) * 100 = 25%
-    #1/0.37
-    if inflow_N-standard_N <= 0.2:
-        inflow_N_standard_N = inflow_N
-    else:
-        inflow_N_standard_N = inflow_N-standard_N
-        
-    processed_ratio2 = (inflow_N-processing_N) / (inflow_N_standard_N)
-    if inflow_N-processing_N ==0:
-        processed_ratio2 = 1
-    reducing_ratio2 = 1-processed_ratio2
-
- 
-
-    ###총인
-    inflow_P = selected_data['총인'].values[0]
-    processing_P = selected_data['↓총인'].values[0]
-    standard_P = selected_data['기준 총인'].values[0]
-    #달성률 = ((5 - 4) / 4) * 100 = (1 / 4) * 100 = 25%
-    #1/0.37
-    if inflow_P-standard_P <= 0.01:
-        inflow_P_standard_P = inflow_P
-    else:
-        inflow_P_standard_P = inflow_P-standard_P
-    processed_ratio3 = (inflow_P-processing_P) / (inflow_P_standard_P)
-    if inflow_N-processing_N ==0:
-        processed_ratio3 = 1
-    reducing_ratio3 = 1-processed_ratio3
-    # Card content - Value
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("탁도 달성률", f"{processed_ratio:.2%}")
-    col2.metric("COD 달성률", f"{processed_ratio1:.2%}")
-    col3.metric("총질소 달성률", f"{processed_ratio2:.2%}")
-    col4.metric("총인 달성률", f"{processed_ratio3:.2%}")
-    style_metric_cards(box_shadow=False)
-
-    
-with tab2:
-    def style_metric_cards(
-        background_color: str = "#FFF",
-        border_size_px: int = 1,
-        border_color: str = "#CCC",
-        border_radius_px: int = 5,
-        border_left_color: str = "#9AD8E1",  # Update the border_left_color to black
-        box_shadow: bool = True,
-    ):
-        box_shadow_str = (
-            "box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15) !important;"
-            if box_shadow
-            else "box-shadow: none !important;"
+    available = history.loc[history["timestamp"].dt.date.eq(selected_date)]
+    with filter_col2:
+        selected_timestamp = st.selectbox(
+            "기록 시각",
+            available["timestamp"].tolist(),
+            index=len(available) - 1,
+            format_func=lambda value: value.strftime("%H:%M"),
         )
-    data = pd.read_csv('RO공정데이터.csv', encoding='cp949')
-    data.dropna(axis=0, inplace=True)
-    
-
-
-    # 사용자로부터 날짜 입력 받기
-    min_date = pd.to_datetime(data['관측일자']).min().date()
-    max_date = pd.to_datetime(data['관측일자']).max().date()
-    default_date = min_date + (max_date - min_date) // 2
-    
-    selected_date = st.date_input("날짜 선택", value=default_date, min_value=min_date, max_value=max_date)
-    selected_date = pd.to_datetime(selected_date)
-
-    # 선택한 날짜까지 필터링
-    filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
-
-    # 관측일자를 연도-월 형식으로 변환 (문자열로 변환)
-    filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
-
-    # 월별로 데이터 집계
-    monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
-
-    #월별 집계 데이터에 누적전력량 column 추가
-    #monthly_data['누적전력량'] = monthly_data['전체 전력량'].cumsum()
-    
-    # col001,col002 = st.columns(2)
-    # with col001:
-        
-
-    #metric 카드 작성
-    col101, col102, col103 = st.columns(3)
-    with col101:
-    
-            before_one_month = selected_date - relativedelta(months=1)
-            press = monthly_data.loc[monthly_data['관측일자'] == selected_date.strftime('%Y-%m'), '1차 인입압력'] # 현재 날짜(월)와 일치하는 1차 인압압력
-            press_1 = monthly_data.loc[monthly_data['관측일자'] == before_one_month.strftime('%Y-%m'), '1차 인입압력'] # 현재 날짜 기준 한달 전의 1차 인압압력
-
-            col101.metric(label="1차 인압압력 (bar)", value=round(press, 2), delta=round(float(press.values - press_1.values),2))
-
-    with col102:
-    
-            before_one_month = selected_date - relativedelta(months=1)
-            tds = monthly_data.loc[monthly_data['관측일자'] == selected_date.strftime('%Y-%m'), '2차 생산수 TDS'] # 현재 날짜(월)와 일치하는 2차 생산수 TDS
-            tds_1 = monthly_data.loc[monthly_data['관측일자'] == before_one_month.strftime('%Y-%m'), '2차 생산수 TDS'] # 현재 날짜 기준 한달 전 2차 생산수 TDS
-
-            col102.metric(label="2차 생산수TDS (mg/L)", value=round( tds,2), delta=round(float(tds.values - tds_1.values),2))
-        
-
-        
-        
-    with col103:
-    
-            before_one_month = selected_date - relativedelta(months=1)
-            powersum = monthly_data.loc[monthly_data['관측일자'] == selected_date.strftime('%Y-%m'), '전체 전력량'] # 현재 날짜(월)까지의 전체 전력량
-            powersum_1 = monthly_data.loc[monthly_data['관측일자'] == before_one_month.strftime('%Y-%m'), '전체 전력량'] # 현재 날짜 기준 한달전까지 전체전력량
-
-            col103.metric(label="월평균전력량 (kWh/m3)", value= round(powersum,2), delta=round(float(powersum.values -  powersum_1.values),2))
-
-        
-
-
-
-    style_metric_cards(box_shadow=False)
-
-
-
-    
-    #인입압력, TDS, 전력량 그래프
-
-    col201, col202= st.columns(2)
-
-    with col201:
-        #인입압력
-        fig_p = px.bar(monthly_data, x="관측일자", y=["1차 인입압력", "2차 인입압력"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 인입압력")
-
-        # 그래프 출력
-        fig_p.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
-        fig_p.update_layout(yaxis_title="인입압력(bar)")  # y축 레이블 설정
-        st.plotly_chart(fig_p)
-    
-    
-    
-    with col202:
-        # TDS
-        fig_tds = px.line(monthly_data, x="관측일자", y=["1차 생산수 TDS", "2차 생산수 TDS"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 1,2차 생산수 TDS")
-
-        # Update the layout and axis labels
-        fig_tds.update_layout(yaxis_title="TDS")  # Set y-axis label
-        fig_tds.update_traces(mode="lines+markers+text",texttemplate='%{y:.2f}', textposition= "top center" )  # Add markers to the lines for data points
-
-        # Display the line graph
-        st.plotly_chart(fig_tds)
-
-
-    
-     #전력량
-    fig_elec = px.bar(monthly_data, x="관측일자", y=['전체 전력량'], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 전력량")
-
-    # 그래프 출력
-    emean = monthly_data['전체 전력량'].mean()
-    fig_elec.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
-    fig_elec.update_layout(yaxis_title="전력량(kWh/m3)")  # y축 레이블 설정
-    fig_elec.add_hline(y= emean, line_width=1, line_dash="dash", line_color="black", annotation_text="평균", annotation_position="bottom right") # 기준선 (평균)추가
-
-    st.plotly_chart(fig_elec, use_container_width=True)
-
-
-with tab3:
-    st.write('### 수질 분석')
-    def style_metric_cards(
-        background_color: str = "#FFF",
-        border_size_px: int = 1,
-        border_color: str = "#CCC",
-        border_radius_px: int = 5,
-        border_left_color: str = "#9AD8E1",  # Update the border_left_color to black
-        box_shadow: bool = True,
-    ):
-        box_shadow_str = (
-            "box-shadow: 0 0.15rem 1.75rem 0 rgba(58, 59, 69, 0.15) !important;"
-            if box_shadow
-            else "box-shadow: none !important;"
-        )
+    row = history.loc[history["timestamp"].eq(selected_timestamp)].iloc[0]
+    sec_percentile = percentile_rank(history["sec_kwh_m3"], row["sec_kwh_m3"])
+    with filter_col3:
         st.markdown(
             f"""
-            <style>
-                div[data-testid="metric-container"] {{
-                    background-color: {background_color};
-                    border: {border_size_px}px solid {border_color};
-                    padding: 5% 5% 5% 10%;
-                    border-radius: {border_radius_px}px;
-                    border-left: 0.5rem solid {border_left_color} !important;
-                    {box_shadow_str}
-                }}
-            </style>
+            <div class="note-card">
+              선택 기록의 SEC는 전체 기록의 <strong>{sec_percentile:.0f}백분위</strong>에 위치합니다.
+              이는 운영 적합 판정이 아니라 과거 분포 안에서의 상대적 위치입니다.
+            </div>
             """,
             unsafe_allow_html=True,
         )
 
-    def preprocessing(df):
-        x = df[['수온', '수소이온농도']]
-        y = df['1차 인입압력']
-        return x, y
+    section("SNAPSHOT", "선택 시점 공정 기록과 모델 추정", "청록은 기록값, 보라는 모델 추정값입니다.")
+    metric_cols = st.columns(5)
+    metric_cols[0].metric(
+        "모델 추정 1단 압력",
+        f"{row['model_pressure_bar']:.2f} bar",
+        f"기록 대비 {row['pressure_error_bar']:+.2f} bar",
+        delta_color="off",
+    )
+    metric_cols[1].metric("기록 1단 압력", f"{row['pressure_stage1_bar']:.2f} bar")
+    metric_cols[2].metric(
+        "모델 추정 SEC",
+        f"{row['model_sec_kwh_m3']:.2f} kWh/m³",
+        f"기록 대비 {row['sec_error_kwh_m3']:+.2f} kWh/m³",
+        delta_color="off",
+    )
+    metric_cols[3].metric("기록 SEC", f"{row['sec_kwh_m3']:.2f} kWh/m³")
+    metric_cols[4].metric("최종 생산수 TDS", f"{row['tds_stage2_mg_l']:.2f} mg/L")
 
-    def preprocessing1(df1):
-        x = df1[['총인', '화학적산소요구량', '총질소', '탁도', '1차 인입압력']]
-        y = df1['전체 전력량']
-        return x, y
-    def draw_circle(value):
-        radius = int(value * 20)
-        circle = f'<svg width="40" height="40"><circle cx="20" cy="20" r="{radius}" fill="#1f77b4" /></svg>'
-        return circle
+    section("PROCESS", "RO 공정 흐름", "구조 설명용 공정도이며 자동 제어 명령을 생성하지 않습니다.")
+    st.markdown(
+        f"""
+        <div class="flow-grid">
+          <div class="flow-step"><div class="flow-index">01 · FEED</div><div class="flow-name">원수 유입</div><div class="flow-value">수온 {row['temperature_c']:.1f}°C<br>pH {row['ph']:.2f}</div></div>
+          <div class="flow-step"><div class="flow-index">02 · PRE</div><div class="flow-name">전처리</div><div class="flow-value">탁도 {row['turbidity_ntu']:.2f} NTU<br>COD {row['cod_mg_l']:.2f} mg/L</div></div>
+          <div class="flow-step"><div class="flow-index">03 · RO 1</div><div class="flow-name">1단 RO</div><div class="flow-value">압력 {row['pressure_stage1_bar']:.2f} bar<br>TDS {row['tds_stage1_mg_l']:.2f} mg/L</div></div>
+          <div class="flow-step"><div class="flow-index">04 · RO 2</div><div class="flow-name">2단 RO</div><div class="flow-value">압력 {row['pressure_stage2_bar']:.2f} bar<br>TDS {row['tds_stage2_mg_l']:.2f} mg/L</div></div>
+          <div class="flow-step"><div class="flow-index">05 · PRODUCT</div><div class="flow-name">생산수</div><div class="flow-value">SEC {row['sec_kwh_m3']:.2f} kWh/m³<br>유량·회수율 미수록</div></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    background_color = """
-    <style>
-    body {
-        background-color: black;
-    }
-    </style>
-    """
-    st.markdown(background_color, unsafe_allow_html=True)
+    chart_col1, chart_col2 = st.columns([1, 1.55])
+    with chart_col1:
+        plot(sec_context_figure(history, row))
+    with chart_col2:
+        plot(local_trend_figure(history, selected_timestamp))
 
-    df = pd.read_csv('RO공정데이터.csv', encoding='cp949')
-    df1 = pd.read_csv('RO공정데이터.csv', encoding='cp949')
-    col200, col201,col199 = st.columns([0.2, 0.4,0.4])
-    with col200:
-            selected_month = st.radio('월 선택', range(1, 13), format_func=lambda x: calendar.month_name[x]) 
-    with col201:
-            df['관측일자'] = pd.to_datetime(df['관측일자'])
-            df['관측월'] = df['관측일자'].dt.month
-            month_data = df[df['관측월'] == selected_month]
-            month_data = month_data[['관측일자', '수온']]
-            fig = px.line(month_data, x='관측일자', y='수온', title='월별 수온 추이')
-            fig.update_layout(xaxis_tickformat='%Y-%m-%d')
-            st.plotly_chart(fig)
-    with col199:
-            df['관측일자'] = pd.to_datetime(df['관측일자'])
-            df['관측월'] = df['관측일자'].dt.month
-            month_data = df[df['관측월'] == selected_month]
-            month_data = month_data[['관측일자', '수온']]
-            df_selected_month = df[df['관측월'] == selected_month]
-            fig_power = px.line(df_selected_month, x='관측일자', y='전체 전력량', title='월별 전체 전력량')
-            fig_power.update_layout(xaxis_tickformat='%Y-%m-%d')
-            st.plotly_chart(fig_power)
-    data = pd.read_csv('해수수질데이터.csv', encoding='cp949')
-    data.dropna(axis=0, inplace=True)
-    min_date = pd.to_datetime(data['관측일자']).min().date()
-    max_date = pd.to_datetime(data['관측일자']).max().date()
-    default_date = min_date + (max_date - min_date) // 2
-    selected_date = st.date_input("날짜 선택", value=default_date, min_value=min_date, max_value=max_date, key="unique_key")
-    col202, col203 = st.columns([0.5, 0.5])
-    with col202:
-            selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
-            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
-            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
-            fig = px.bar(monthly_data, x="관측일자", y=["유입된 탁도(NTU)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 탁도")
-            fig.add_hline(y=1, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
-            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
-            fig.update_layout(yaxis_title="탁도")  # y축 레이블 설정
-            st.plotly_chart(fig)
-    with col203:
-            selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
-            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
-            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
-            fig = px.bar(monthly_data, x="관측일자", y=[ "유입된 화학적산소요구량(mg/L)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 화학적산소요구량")
-            fig.add_hline(y=1, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
-            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
-            fig.update_layout(yaxis_title="화학적산소요구량")  # y축 레이블 설정
-            st.plotly_chart(fig)
-    col204, col205 = st.columns([0.5, 0.5])
-    with col204:
-            selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
-            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
-            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
-
-            fig = px.bar(monthly_data, x="관측일자", y=["유입된 총인(mg/L)"],     color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 총인")
-            fig.add_hline(y=0.01, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
-            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
-            fig.update_layout(yaxis_title="총인")  # y축 레이블 설정
-            st.plotly_chart(fig)
-    with col205:
-            selected_date = pd.to_datetime(selected_date)
-            filtered_data = data[pd.to_datetime(data['관측일자']).dt.date <= selected_date.date()]
-            filtered_data['관측일자'] = pd.to_datetime(filtered_data['관측일자']).dt.to_period('M').astype(str)
-            monthly_data = filtered_data.groupby('관측일자').mean().reset_index()
-            fig = px.bar(monthly_data, x="관측일자", y=[ "유입된 총질소(mg/L)"], color_discrete_sequence=px.colors.qualitative.Pastel, title="월별 평균 총질소")
-            fig.add_hline(y=0.2, line_dash="solid", line_color="black", annotation_text="기준", annotation_position="bottom right")
-        
-            fig.update_traces(texttemplate='%{y:.2f}', textposition='outside')  # 소수점 두 자리로 표시 및 막대 바깥에 텍스트 표시
-            fig.update_layout(yaxis_title="총질소")  # y축 레이블 설정
-            st.plotly_chart(fig)
-
-    df.drop(['관측일자', '2차 인입압력', '1차 생산수 TDS', '2차 생산수 TDS', '전체 전력량', '총인', '화학적산소요구량', '총질소', '탁도'], axis=1, inplace=True)
-
-    df1.drop(['관측일자', '2차 인입압력', '1차 생산수 TDS', '2차 생산수 TDS'], axis=1, inplace=True)
-    new_x, new_y = preprocessing(df)
-    model_m = joblib.load('LR_pressure.pkl')
-    def predict_pressure(input_data):
-        predicted_pressure = model_m.predict(input_data)
-        return predicted_pressure
-    col206, col207 = st.columns([0.5, 0.5])
-    with col206:
-                input_temperature = st.slider("수온을 입력하세요:", min_value=0.0, max_value=31.0, value=5.0,step=0.1)
-    with col207:
-                input_concentration = st.slider("수소이온농도를 입력하세요:",min_value=0.0, max_value=11.0, value=5.0,step=0.1)
-    input_data = [[input_temperature, input_concentration]]
-    predicted_pressure = predict_pressure(input_data)
-    st.subheader("1차 인입압력량 예측 결과")
-    st.success(f"예측된 1차 인입압력: {predicted_pressure}")
-
-    new_xx, new_yy = preprocessing1(df1)
-    model_k = joblib.load('RF_elec.pkl')
-
-    def predict_electricity(input_data):
-        predicted_electricity = model_k.predict(input_data)
-        return predicted_electricity
+    section("FEED WATER", "선택 시점 원수 조건", "모델에 사용된 수질 입력을 단위와 함께 표시합니다.")
+    water_cols = st.columns(4)
+    water_cols[0].metric("탁도", f"{row['turbidity_ntu']:.2f} NTU")
+    water_cols[1].metric("COD", f"{row['cod_mg_l']:.2f} mg/L")
+    water_cols[2].metric("총질소", f"{row['total_n_mg_l']:.3f} mg/L")
+    water_cols[3].metric("총인", f"{row['total_p_mg_l']:.3f} mg/L")
 
 
-    col208, col209,col210,col211,col212 = st.columns([0.2, 0.2,0.2,0.2,0.2])
-    with col208:
-        input_pressure = st.slider("1차 인입압력을 입력하세요: ", min_value=0.0, max_value=61.0, value=5.0, step=0.1,      format="%.1f", key="pressure_slider")
-    with col209:
-        input_turbidity = st.slider("탁도를 입력하세요: ", min_value=0.0, max_value=5.0, value=2.5,step=0.1)
-    with col210:
-        input_nitrogen = st.slider("총 질소를 입력하세요: ", min_value=0.0, max_value=5.0, value=2.5,step=0.1)
-    with col211:
-        input_total_inorganic_nitrogen = st.slider("총인을 입력하세요: ",  min_value=0.0, max_value=5.0, value=2.5,step=0.1)
-    with col212:
-        input_chemical_oxygen_demand = st.slider("화학적산소요구량을 입력하세요: ",  min_value=0.0, max_value=5.0,    value=2.5,step=0.1)
-
-    input_data1 = [[input_pressure, input_turbidity, input_nitrogen, input_total_inorganic_nitrogen,    input_chemical_oxygen_demand]]
-    predicted_electricity = predict_electricity(input_data1)
-    col1, col2, col3,col4 = st.columns(4) 
-    col1.metric("탁도", f"{input_turbidity-1:.2f}"+'NTU', f"{(input_turbidity-1)-1:.2f}NTU ")
-    col2.metric("총 질소", f"{input_nitrogen -0.2:.2f}mg/L", f"{(input_nitrogen -0.2-0.2):.2f}mg/L")
-    col3.metric("총인", f"{input_total_inorganic_nitrogen-0.01:.2f}mg/L", f"{input_total_inorganic_nitrogen-0.01-0.01:.2f}mg/L")
-    col4.metric("화학전산소요구량", f"{input_chemical_oxygen_demand-1:.2f}mg/L", f"{(input_chemical_oxygen_demand-1)-1:.2f}mg/L")
-    style_metric_cards()
-    st.subheader("수질 조절 후 전력량 예측 ")
-    st.success(f"예측된 전체 전력량: {predicted_electricity}")
-    col220, col221 = st.columns([0.3, 0.7])
-    with col220:
-        fig = px.pie(values=[input_pressure, input_turbidity, input_nitrogen,input_total_inorganic_nitrogen,input_chemical_oxygen_demand], names=['1차 인입압력','탁도','총 질소','총인','화학적산소요구량'])
-        fig.update_layout(
-        showlegend=True,
-        legend_title="데이터",
-        plot_bgcolor='rgb(240, 240, 240)',
-        paper_bgcolor='rgba(0, 0, 0, 0)',  # 배경 투명화
-        font=dict(
-            family='Arial',
-            size=12,
-            color='black'
-        ),
-        title=dict(
-            text='전력량 요인',
-            font=dict(
-                family='Arial',
-                size=24,
-                color='black'
-            )
-        ),
-        legend=dict(
-            x=0.85,
-            y=1.2,
-            bgcolor='rgba(255, 255, 255, 0.7)',  # 범례 배경 투명도 설정
-            bordercolor='black',  # 범례 테두리 색상
-            borderwidth=1,  # 범례 테두리 두께
-        ),margin=dict(r=400)
+elif page == "기간 성과":
+    section(
+        "MONTHLY REVIEW",
+        "완전한 월 단위 비교",
+        "월별 표본 수와 정시 관측 밀도를 함께 보아 희소한 기간의 과대 해석을 막습니다.",
+    )
+    month_labels = monthly["month_label"].tolist()
+    month_select_col1, month_select_col2 = st.columns(2)
+    with month_select_col1:
+        selected_month = st.selectbox("분석 월", month_labels, index=len(month_labels) - 1)
+    selected_index = month_labels.index(selected_month)
+    with month_select_col2:
+        default_compare_index = max(0, selected_index - 1)
+        compare_month = st.selectbox(
+            "비교 월",
+            month_labels,
+            index=default_compare_index,
+            help="분석 월과 다른 월을 골라 지표 차이를 확인합니다.",
         )
-        fig.update_traces(hole=0.4, 
-                  marker=dict(colors = ['#1f2933', '#4b5563', '#6b7280', '#9ca3af', '#d1d5db']),
-                  textposition='inside',
-                  textinfo='percent+label',
-                  hovertemplate='<b>%{label}</b><br>%{value:.2f}',
-                  hoverlabel=dict(bgcolor='white', font=dict(color='black')),
-                  insidetextfont=dict(color='white'))
-        st.plotly_chart(fig)
-    with col221:
-        col1, col2, col3, col4, col5 = st.columns(5) 
-        pie_labels = ['1차 인입압력', '탁도', '총 질소', '총인', '화학적산소요구량']
-        pie_values = [input_pressure, input_turbidity, input_nitrogen, input_total_inorganic_nitrogen, input_chemical_oxygen_demand]
-        pie_percentages = [f"{(val / sum(pie_values)) * 100:.2f}%" for val in pie_values]
-        col1.metric(label="총 인입압력 비율", value=pie_percentages[0])
-        col2.metric(label="탁도 비율", value=pie_percentages[1])
-        col3.metric(label="총 질소 비율", value=pie_percentages[2])
-        col4.metric(label="총인 비율", value=pie_percentages[3])
-        col5.metric(label="화학적산소요구량 비율", value=pie_percentages[4])
-    
-    water = pd.read_csv('인천수질데이터.csv', encoding='cp949')
-    water1 = pd.read_csv('수질서비스.csv', encoding='cp949')
+    current = monthly.iloc[selected_index]
+    compare_index = month_labels.index(compare_month)
+    comparison = None if compare_index == selected_index else monthly.iloc[compare_index]
+    comparison_label = "비교 월" if comparison is not None else None
 
-    
+    metric_cols = st.columns(5)
+    metric_cols[0].metric(
+        "월평균 1단 압력",
+        f"{current['pressure_stage1_bar']:.2f} bar",
+        delta_text(
+            current["pressure_stage1_bar"],
+            None if comparison is None else comparison["pressure_stage1_bar"],
+            "bar",
+            comparison_label,
+        ),
+        delta_color="off",
+    )
+    metric_cols[1].metric(
+        "월평균 SEC",
+        f"{current['sec_kwh_m3']:.2f} kWh/m³",
+        delta_text(
+            current["sec_kwh_m3"],
+            None if comparison is None else comparison["sec_kwh_m3"],
+            "kWh/m³",
+            comparison_label,
+        ),
+        delta_color="off",
+    )
+    metric_cols[2].metric(
+        "월평균 최종 TDS",
+        f"{current['tds_stage2_mg_l']:.2f} mg/L",
+        delta_text(
+            current["tds_stage2_mg_l"],
+            None if comparison is None else comparison["tds_stage2_mg_l"],
+            "mg/L",
+            comparison_label,
+        ),
+        delta_color="off",
+    )
+    metric_cols[3].metric("표본 수", f"{int(current['samples']):,}건")
+    metric_cols[4].metric("정시 관측 밀도", f"{current['exact_hour_density_pct']:.1f}%")
 
-    
-    user_input = st.text_input("지역명을 입력하세요.")
-    filtered_data_water = water[water['loc_nm'].str.contains(user_input)]
-    filtered_data_water1 = water1[water1['시설주소'].str.contains(user_input)]
+    st.caption(
+        "월평균은 생산량 가중치가 없는 관측값의 단순 평균입니다. "
+        "델타는 선택한 비교 월 기준이며, 정시 관측 밀도는 해당 월 전체 시간 수 대비 분·초가 00인 기록의 비율입니다."
+    )
 
-    if not filtered_data_water.empty:
-        st.write("수질 데이터:")
-        st.write(filtered_data_water[['loc_nm', 'temp', 'ph', 'do_', 't_n', 't_p', 'cod']])
-    elif not filtered_data_water1.empty:
-        st.write("수질 데이터:")
-        st.write(filtered_data_water1[['시설주소', 'pH', '탁도']])
-    else:
-        st.write("해당 지역의 수질 데이터를 찾을 수 없습니다.")
-        st.write("입력한 지역: ", user_input)
+    chart_col1, chart_col2 = st.columns([1.25, 1])
+    with chart_col1:
+        plot(monthly_operations_figure(monthly))
+    with chart_col2:
+        plot(monthly_quality_figure(monthly))
+    plot(observation_density_figure(monthly))
 
-    geolocator = Nominatim(user_agent="my_app")
-    try:
-        location = geolocator.geocode(user_input, timeout=10)
-        if location:
-            latitude = location.latitude
-            longitude = location.longitude
-            st.write("입력한 지역의 경도: ", longitude)
-            st.write("입력한 지역의 위도: ", latitude)
-            st.map(data=[{"latitude": latitude, "longitude": longitude, "tooltip": user_input}])
-        else:
-            st.write("입력한 지역의 좌표를 가져올 수 없습니다.")
-    except GeocoderUnavailable:
-        st.write("지오코딩 서비스를 사용할 수 없습니다.")
+    section("TABLE", "월간 요약 데이터", "차트에 사용한 집계값을 내려받을 수 있습니다.")
+    summary_view = monthly[
+        [
+            "month_label",
+            "samples",
+            "exact_hour_density_pct",
+            "pressure_stage1_bar",
+            "sec_kwh_m3",
+            "tds_stage1_mg_l",
+            "tds_stage2_mg_l",
+        ]
+    ].rename(
+        columns={
+            "month_label": "월",
+            "samples": "표본 수",
+            "exact_hour_density_pct": "정시 관측 밀도(%)",
+            "pressure_stage1_bar": "1단 압력(bar)",
+            "sec_kwh_m3": "SEC(kWh/m³)",
+            "tds_stage1_mg_l": "1단 TDS(mg/L)",
+            "tds_stage2_mg_l": "2단 TDS(mg/L)",
+        }
+    )
+    st.dataframe(
+        summary_view.style.format(
+            {
+                "정시 관측 밀도(%)": "{:.1f}",
+                "1단 압력(bar)": "{:.2f}",
+                "SEC(kWh/m³)": "{:.2f}",
+                "1단 TDS(mg/L)": "{:.2f}",
+                "2단 TDS(mg/L)": "{:.2f}",
+            }
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+    st.download_button(
+        "월간 요약 CSV 받기",
+        summary_view.to_csv(index=False).encode("utf-8-sig"),
+        file_name="ro_monthly_summary_2021.csv",
+        mime="text/csv",
+    )
+
+
+elif page == "예측 실험실":
+    section(
+        "WHAT-IF LAB",
+        "기록 범위 안에서 조건 비교",
+        "수온·pH로 압력을 추정한 뒤 그 결과와 원수 수질을 SEC 모델에 연결합니다.",
+    )
+    st.info(
+        "입력 범위는 저장소의 사용 가능한 공정 기록 범위로 제한됩니다. "
+        "결과는 연구용 추정치이며 설비 설정값이나 운전 권고가 아닙니다."
+    )
+
+    def slider_for(column: str, label: str, step: float, fmt: str = "%.2f") -> float:
+        spec = ranges.loc[column]
+        value = st.slider(
+            label,
+            min_value=float(spec["min"]),
+            max_value=float(spec["max"]),
+            value=float(spec["median"]),
+            step=step,
+            format=fmt,
+        )
+        st.caption(
+            f"기록 중앙 90%: {spec['p05']:.3f}–{spec['p95']:.3f} {spec['unit']}"
+        )
+        return value
+
+    input_col1, input_col2, input_col3 = st.columns(3)
+    with input_col1:
+        temperature = slider_for("temperature_c", "수온 (°C)", 0.1, "%.1f")
+        ph = slider_for("ph", "pH", 0.01)
+    with input_col2:
+        turbidity = slider_for("turbidity_ntu", "탁도 (NTU)", 0.1)
+        cod = slider_for("cod_mg_l", "COD (mg/L)", 0.1)
+    with input_col3:
+        total_n = slider_for("total_n_mg_l", "총질소 (mg/L)", 0.01, "%.3f")
+        total_p = slider_for("total_p_mg_l", "총인 (mg/L)", 0.001, "%.3f")
+
+    scenario = {
+        "temperature_c": temperature,
+        "ph": ph,
+        "turbidity_ntu": turbidity,
+        "cod_mg_l": cod,
+        "total_n_mg_l": total_n,
+        "total_p_mg_l": total_p,
+    }
+    scenario_pressure, scenario_sec = predict_scenario(
+        models.pressure,
+        models.sec,
+        **scenario,
+    )
+    baseline = {column: float(ranges.loc[column, "median"]) for column in scenario}
+    baseline_pressure, baseline_sec = predict_scenario(
+        models.pressure,
+        models.sec,
+        **baseline,
+    )
+    scenario_percentile = percentile_rank(history["sec_kwh_m3"], scenario_sec)
+
+    section("RESULT", "기준 시나리오와 변경 시나리오", "기준은 각 입력 변수의 기록 중앙값입니다.")
+    result_cols = st.columns(4)
+    result_cols[0].metric("기준 압력 추정", f"{baseline_pressure:.2f} bar")
+    result_cols[1].metric(
+        "시나리오 압력 추정",
+        f"{scenario_pressure:.2f} bar",
+        f"기준 대비 {scenario_pressure - baseline_pressure:+.2f} bar",
+        delta_color="off",
+    )
+    result_cols[2].metric("기준 SEC 추정", f"{baseline_sec:.2f} kWh/m³")
+    result_cols[3].metric(
+        "시나리오 SEC 추정",
+        f"{scenario_sec:.2f} kWh/m³",
+        f"기준 대비 {scenario_sec - baseline_sec:+.2f} kWh/m³",
+        delta_color="off",
+    )
+    st.caption(
+        f"시나리오 SEC 추정치는 과거 기록 SEC 분포의 약 {scenario_percentile:.0f}백분위 위치입니다. "
+        "분포 위치는 안전성·적합성 판정이 아닙니다."
+    )
+    plot(sensitivity_figure(models.pressure, models.sec, scenario, ranges))
+
+    section("MODEL CARD", "모델의 범위와 읽는 법", "성능은 독립 검증이 아닌 전체 기록 적합도입니다.")
+    card_col1, card_col2, card_col3 = st.columns(3)
+    with card_col1:
+        st.markdown(
+            f"""
+            <div class="model-card"><div class="eyebrow">PRESSURE MODEL</div>
+            <h3>선형회귀 · 2개 입력</h3>
+            <p><strong>입력</strong> 수온, pH</p>
+            <p><strong>전체기록 MAE</strong> {model_diagnostics['pressure']['mae']:.3f} bar</p>
+            <p><strong>전체기록 R²</strong> {model_diagnostics['pressure']['r2']:.3f}</p></div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with card_col2:
+        st.markdown(
+            f"""
+            <div class="model-card"><div class="eyebrow">SEC MODEL · CHAINED</div>
+            <h3>랜덤포레스트 · 5개 입력</h3>
+            <p><strong>입력</strong> 총인, COD, 총질소, 탁도, 추정 압력</p>
+            <p><strong>전체기록 MAE</strong> {model_diagnostics['sec_chain']['mae']:.3f} kWh/m³</p>
+            <p><strong>전체기록 R²</strong> {model_diagnostics['sec_chain']['r2']:.3f}</p></div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with card_col3:
+        st.markdown(
+            """
+            <div class="model-card"><div class="eyebrow">KNOWN LIMITS</div>
+            <h3>모델에 없는 핵심 변수</h3>
+            <p>염분·전기전도도, 원수/생산수 유량, 회수율, 막 상태, 차압, 약품 주입량이 포함되지 않았습니다.</p>
+            <p>자동 제어·보증 성능·안전 판정에 사용할 수 없습니다.</p></div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+elif page == "운영 인사이트":
+    section(
+        "REVIEW QUEUE",
+        "모델-기록 차이가 큰 구간부터 점검",
+        "전체 기록의 오차 분포에서 상대적으로 큰 차이를 찾아 검토 순서를 정합니다.",
+    )
+    st.warning(
+        "아래 후보는 각 오차의 95백분위 이상인 기록입니다. 통계적 검토 큐일 뿐 "
+        "안전·품질 이상 판정이나 자동 운전 지시가 아닙니다."
+    )
+    watchlist, thresholds = anomaly_watchlist(history)
+    insight_cols = st.columns(4)
+    insight_cols[0].metric("검토 후보", f"{int(thresholds['watch_count']):,}건")
+    insight_cols[1].metric("전체 중 비중", f"{thresholds['watch_share_pct']:.1f}%")
+    insight_cols[2].metric(
+        "압력 차이 기준",
+        f"{thresholds['pressure_cutoff']:.2f} bar",
+        "95백분위",
+        delta_color="off",
+    )
+    insight_cols[3].metric(
+        "SEC 차이 기준",
+        f"{thresholds['sec_cutoff']:.3f} kWh/m³",
+        "95백분위",
+        delta_color="off",
+    )
+
+    plot(
+        error_watch_figure(
+            history,
+            pressure_cutoff=float(thresholds["pressure_cutoff"]),
+            sec_cutoff=float(thresholds["sec_cutoff"]),
+        )
+    )
+
+    section(
+        "WATCHLIST",
+        "상위 검토 후보",
+        "모델과 기록의 차이가 큰 순서입니다. 원자료·센서 상태·운영 로그와 함께 확인하세요.",
+    )
+    review_columns = [
+        "timestamp",
+        "pressure_stage1_bar",
+        "model_pressure_bar",
+        "pressure_error_bar",
+        "sec_kwh_m3",
+        "model_sec_kwh_m3",
+        "sec_error_kwh_m3",
+        "temperature_c",
+        "turbidity_ntu",
+        "watch_reason",
+    ]
+    review_view = watchlist[review_columns].head(40).copy()
+    review_view["timestamp"] = review_view["timestamp"].dt.strftime("%Y-%m-%d %H:%M")
+    review_view = review_view.rename(
+        columns={
+            "timestamp": "시각",
+            "pressure_stage1_bar": "기록 압력(bar)",
+            "model_pressure_bar": "모델 압력(bar)",
+            "pressure_error_bar": "압력 차이(bar)",
+            "sec_kwh_m3": "기록 SEC(kWh/m³)",
+            "model_sec_kwh_m3": "모델 SEC(kWh/m³)",
+            "sec_error_kwh_m3": "SEC 차이(kWh/m³)",
+            "temperature_c": "수온(°C)",
+            "turbidity_ntu": "탁도(NTU)",
+            "watch_reason": "검토 사유",
+        }
+    )
+    st.dataframe(
+        review_view.style.format(
+            {
+                "기록 압력(bar)": "{:.2f}",
+                "모델 압력(bar)": "{:.2f}",
+                "압력 차이(bar)": "{:+.2f}",
+                "기록 SEC(kWh/m³)": "{:.3f}",
+                "모델 SEC(kWh/m³)": "{:.3f}",
+                "SEC 차이(kWh/m³)": "{:+.3f}",
+                "수온(°C)": "{:.1f}",
+                "탁도(NTU)": "{:.2f}",
+            }
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+    st.download_button(
+        "검토 후보 CSV 받기",
+        watchlist.to_csv(index=False).encode("utf-8-sig"),
+        file_name="ro_model_record_watchlist_2021.csv",
+        mime="text/csv",
+    )
+    st.caption(
+        "기준값은 현재 표시된 2021년 기록 전체에서 다시 계산합니다. "
+        "상위 40건 표에는 원인으로 단정하지 않고 차이가 큰 변수만 표시합니다."
+    )
+
+
+else:
+    section(
+        "TRANSPARENCY",
+        "데이터와 모델의 한계를 먼저 확인",
+        "공공 원수 관측자료와 출처가 문서화되지 않은 RO 샘플 공정 기록을 구분합니다.",
+    )
+    overview_cols = st.columns(5)
+    overview_cols[0].metric("원본 행", f"{profile.source_rows:,}건")
+    overview_cols[1].metric("사용 가능 행", f"{profile.usable_rows:,}건")
+    overview_cols[2].metric("중복 제거", f"{profile.duplicate_rows_removed:,}건")
+    overview_cols[3].metric("결측 제거", f"{profile.incomplete_rows:,}건")
+    overview_cols[4].metric("정시 기록 비중", f"{profile.exact_hour_share:.1%}")
+
+    source_col1, source_col2 = st.columns(2)
+    with source_col1:
+        st.markdown(
+            """
+            <div class="model-card"><div class="eyebrow">DOCUMENTED SOURCE</div>
+            <h3>천수만 원수 관측자료</h3>
+            <p>저장소 파일명 기준: 해양환경공단 해양수질자동측정망 천수만(2021).</p>
+            <p>이 출처 표시는 수온·pH·탁도·COD·총질소·총인 원수 변수에만 적용합니다.</p></div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with source_col2:
+        st.markdown(
+            """
+            <div class="model-card"><div class="eyebrow">UNDOCUMENTED SAMPLE DATA</div>
+            <h3>RO 공정 기록</h3>
+            <p>압력·생산수 TDS·SEC의 측정 설비, 보정 방법, 생산량 가중치가 저장소에 문서화되어 있지 않습니다.</p>
+            <p>공개 배포에서는 실제 플랜트 실적이 아닌 샘플/가공 공정 데이터로 취급합니다.</p></div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    section("DATA QUALITY", "0값과 표본 밀도", "0이 실제 측정값인지 센서 결측 대체값인지 원자료만으로 확정할 수 없습니다.")
+    zero_cols = st.columns(4)
+    zero_cols[0].metric("탁도 0값", f"{profile.zero_counts['turbidity_ntu']:,}건")
+    zero_cols[1].metric("COD 0값", f"{profile.zero_counts['cod_mg_l']:,}건")
+    zero_cols[2].metric("총질소 0값", f"{profile.zero_counts['total_n_mg_l']:,}건")
+    zero_cols[3].metric("총인 0값", f"{profile.zero_counts['total_p_mg_l']:,}건")
+    plot(observation_density_figure(monthly))
+
+    section("RANGES", "사용 기록의 변수 범위", "모델 학습 범위가 문서화되지 않아 앱은 사용 기록 범위를 대리 경계로 사용합니다.")
+    range_view = ranges.reset_index()[["label", "unit", "min", "p05", "median", "p95", "max"]].rename(
+        columns={
+            "label": "변수",
+            "unit": "단위",
+            "min": "최솟값",
+            "p05": "5백분위",
+            "median": "중앙값",
+            "p95": "95백분위",
+            "max": "최댓값",
+        }
+    )
+    st.dataframe(
+        range_view.style.format(
+            {"최솟값": "{:.3f}", "5백분위": "{:.3f}", "중앙값": "{:.3f}", "95백분위": "{:.3f}", "최댓값": "{:.3f}"}
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+
+    section("LIMITATIONS", "사용 전에 알아야 할 점")
+    st.warning(
+        "모델을 재현할 학습 파이프라인과 독립 시간순 검증 결과가 저장소에 없습니다. "
+        "표시된 MAE·R²는 저장 모델을 전체 공정 기록에 다시 적용한 적합도이므로 일반화 성능보다 낙관적일 수 있습니다."
+    )
+    st.markdown(
+        """
+        - 이 앱은 실제 센서, PLC, SCADA, 제어 밸브와 연결되지 않습니다.
+        - 생산수 유량과 원수 유량이 없어 생산량·회수율을 계산하지 않습니다.
+        - 규제 준수, 식수 적합성, 막 세정 또는 운전 모드 전환을 판정하지 않습니다.
+        - Joblib 모델은 신뢰된 저장소 아티팩트를 재패키징하고 SHA-256으로 무결성을 확인한 뒤 로드합니다.
+        """
+    )
+    cleaned_export = history.drop(
+        columns=["model_pressure_bar", "model_sec_kwh_m3", "pressure_error_bar", "sec_error_kwh_m3"]
+    )
+    st.download_button(
+        "정제 공정 기록 CSV 받기",
+        cleaned_export.to_csv(index=False).encode("utf-8-sig"),
+        file_name="ro_history_clean_2021.csv",
+        mime="text/csv",
+    )
+
+st.markdown(
+    f"""
+    <div class="footer-note">
+      RO Lens 연구용 데모 · 데이터 기간 {start_time:%Y-%m-%d}–{end_time:%Y-%m-%d} ·
+      모델 패키지 {models.manifest.get('bundle_version', 'unknown')} · 실제 설비 제어용 아님
+    </div>
+    """,
+    unsafe_allow_html=True,
+)

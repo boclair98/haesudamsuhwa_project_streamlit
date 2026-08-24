@@ -1,0 +1,9 @@
+version: "1"
+mode: standalone
+services:
+  web:
+    dockerfile: Dockerfile
+    context: .
+    port: 8501
+    expose: public
+    timeout: 3600

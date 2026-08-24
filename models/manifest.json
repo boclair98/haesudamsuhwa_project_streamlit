@@ -1,0 +1,28 @@
+{
+  "bundle_version": "2026.08.24",
+  "source_repository": "boclair98/haesudamsuhwa_project_streamlit",
+  "runtime_sklearn": "1.2.2",
+  "models": {
+    "pressure": {
+      "file": "pressure.joblib",
+      "sha256": "36e32cc8fb6bdfd64b9b325cc0c95f5548c5b0605a275ec57c5b7c05138f336b",
+      "features": [
+        "수온",
+        "수소이온농도"
+      ],
+      "algorithm": "LinearRegression"
+    },
+    "sec": {
+      "file": "sec.joblib",
+      "sha256": "bf6afcb7cf18ffadd83ccc2b6d75591a68d1e6ad6a0f90336caeec1624110524",
+      "features": [
+        "총인",
+        "화학적산소요구량",
+        "총질소",
+        "탁도",
+        "1차 인입압력"
+      ],
+      "algorithm": "RandomForestRegressor"
+    }
+  }
+}

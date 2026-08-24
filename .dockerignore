@@ -1,0 +1,16 @@
+.git
+.github
+.coders
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.ipynb_checkpoints
+.env
+.env.*
+.streamlit/secrets.toml
+tests
+*.zip

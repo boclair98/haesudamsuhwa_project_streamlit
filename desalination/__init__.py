@@ -1,2 +1,3 @@
-"""해수담수화 대시보드의 재사용 가능한 도메인 로직."""
+"""RO desalination dashboard domain package."""
 
+__all__ = ["analytics", "charts", "resources"]
