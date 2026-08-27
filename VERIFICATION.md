@@ -18,8 +18,8 @@
 ## Browser checks
 
 - initial page renders meaningful content with no Streamlit exception
-- browser console contains no error/warning in a stable fresh session
-- all six views render:
+- previous public browser session contained no runtime error in a stable fresh session
+- Streamlit `AppTest` renders all six views with zero exceptions:
   - 파일럿 개요
   - 운전 스냅샷
   - 기간 성과
@@ -36,6 +36,7 @@
 - 390 × 844 mobile viewport has no horizontal overflow
 - 1280 × 720 desktop viewport has no horizontal overflow
 - Streamlit development toolbar is hidden in the product UI
+- latest public HTTP smoke check: root `200`, `/_stcore/health` `200 ok`, deployment runtime error `null`
 
 ## Data/model checks
 
@@ -51,4 +52,7 @@
 Docker is not installed in the local Codex workspace, so a local `docker build`
 could not be executed. The container contract is verified through the same
 Streamlit command, the health endpoint, and the coders.kr deployment build.
+The in-app browser was unavailable during the latest pass, so visual viewport
+checks remain from the previous public browser session; page execution was
+re-checked with Streamlit `AppTest` instead.
 
