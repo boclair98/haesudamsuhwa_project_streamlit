@@ -294,6 +294,36 @@ def error_watch_figure(
     return _finish(fig, height=560, legend=False)
 
 
+def feature_signal_figure(
+    frame: pd.DataFrame,
+    *,
+    title: str,
+    value_label: str,
+    signed: bool = False,
+) -> go.Figure:
+    """Render compact, readable model signal bars for the model card."""
+    data = frame.sort_values("value", ascending=True).copy()
+    colors = (
+        [MODEL if value >= 0 else OBSERVED for value in data["value"]]
+        if signed
+        else [ACCENT] * len(data)
+    )
+    fig = go.Figure(
+        go.Bar(
+            x=data["value"],
+            y=data["feature"],
+            orientation="h",
+            marker_color=colors,
+            hovertemplate="%{y}<br>%{x:.4f}<extra></extra>",
+        )
+    )
+    if signed:
+        fig.add_vline(x=0, line_color=MUTED, line_width=1)
+    fig.update_layout(title=title)
+    fig.update_xaxes(title=value_label)
+    return _finish(fig, height=max(260, 72 * len(data) + 100), legend=False)
+
+
 def sensitivity_figure(
     pressure_model,
     sec_model,
@@ -350,3 +380,4 @@ def sensitivity_figure(
     fig.update_xaxes(title="1단 인입압력 (bar)", row=1, col=2)
     fig.update_yaxes(title="kWh/m³", row=1, col=2)
     return _finish(fig, height=380, legend=False)
+

@@ -90,6 +90,44 @@ def diagnostics(history: pd.DataFrame) -> dict[str, dict[str, float | int]]:
     return {"pressure": asdict(pressure), "sec_chain": asdict(sec)}
 
 
+def model_explainability(pressure_model, sec_model) -> dict[str, pd.DataFrame]:
+    """Expose model signals without presenting them as causal effects.
+
+    The pressure model is a linear regressor, so its signed coefficients are
+    useful as directional signals. The SEC model is a tree ensemble, so its
+    feature_importances_ values are relative split-based importances. Both
+    outputs are deliberately returned as small tables for transparent display
+    and export; missing estimator metadata results in an empty table.
+    """
+
+    pressure_names = list(
+        getattr(pressure_model, "feature_names_in_", PRESSURE_FEATURES)
+    )
+    pressure_values = np.asarray(
+        getattr(pressure_model, "coef_", []), dtype=float
+    ).reshape(-1)
+    pressure_size = min(len(pressure_names), len(pressure_values))
+    pressure = pd.DataFrame(
+        {
+            "feature": pressure_names[:pressure_size],
+            "value": pressure_values[:pressure_size],
+        }
+    )
+
+    sec_names = list(getattr(sec_model, "feature_names_in_", SEC_FEATURES))
+    sec_values = np.asarray(
+        getattr(sec_model, "feature_importances_", []), dtype=float
+    ).reshape(-1)
+    sec_size = min(len(sec_names), len(sec_values))
+    sec = pd.DataFrame(
+        {
+            "feature": sec_names[:sec_size],
+            "value": sec_values[:sec_size],
+        }
+    )
+    return {"pressure": pressure, "sec": sec}
+
+
 def anomaly_watchlist(
     history: pd.DataFrame,
     quantile: float = 0.95,
@@ -248,3 +286,4 @@ def predict_scenario(
     pressure = float(predict_pressure(pressure_model, frame)[0])
     sec = float(predict_sec(sec_model, frame, [pressure])[0])
     return pressure, sec
+

@@ -7,6 +7,7 @@ from desalination.analytics import (
     anomaly_watchlist,
     diagnostics,
     enrich_history,
+    model_explainability,
     monthly_summary,
     percentile_rank,
     predict_scenario,
@@ -14,6 +15,7 @@ from desalination.analytics import (
 )
 from desalination.charts import (
     error_watch_figure,
+    feature_signal_figure,
     local_trend_figure,
     monthly_operations_figure,
     monthly_quality_figure,
@@ -145,6 +147,14 @@ st.markdown(
     .model-card .eyebrow { color: var(--violet); font-weight: 900; font-size: .74rem; letter-spacing: .09em; }
     .model-card h3 { margin: 6px 0 10px; font-size: 1.08rem; }
     .model-card p { margin: 5px 0; font-size: .84rem; line-height: 1.55; }
+    .step-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; margin: 12px 0 6px; }
+    .step-card { min-height: 150px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: white; }
+    .step-card .step-index { color: var(--teal); font-size: .72rem; font-weight: 900; letter-spacing: .1em; }
+    .step-card h3 { margin: 7px 0 8px; font-size: 1rem; }
+    .step-card p { margin: 0; color: var(--muted); font-size: .82rem; line-height: 1.55; }
+    .status-ok { color: #0f766e; font-weight: 800; }
+    .status-review { color: #b45309; font-weight: 800; }
+    .status-blocked { color: #b91c1c; font-weight: 800; }
     .footer-note { margin-top: 42px; padding-top: 16px; border-top: 1px solid var(--line); font-size: .78rem; color: var(--muted); }
     @media (max-width: 820px) {
         .block-container { padding: 1rem 1rem 3rem; }
@@ -152,6 +162,7 @@ st.markdown(
         .trustbar { grid-template-columns: repeat(2, 1fr); }
         .flow-grid { grid-template-columns: 1fr; }
         .flow-step:after { content: "↓"; right: 50%; top: auto; bottom: -18px; }
+        .step-grid { grid-template-columns: 1fr; }
     }
     </style>
     """,
@@ -223,16 +234,18 @@ except ResourceError as exc:
 model_diagnostics = diagnostics(history)
 monthly = monthly_summary(history)
 ranges = support_ranges(history)
+watchlist, thresholds = anomaly_watchlist(history)
+explainability = model_explainability(models.pressure, models.sec)
 start_time = history["timestamp"].min()
 end_time = history["timestamp"].max()
 
 st.markdown(
     f"""
     <div class="hero">
-      <div class="hero-kicker">RO LENS · PROCESS EXPLORER</div>
-      <h1>해수담수화 공정 분석 데모</h1>
-      <p>2021년 천수만 원수 관측자료와 저장소의 RO 샘플 공정 기록을 바탕으로
-      1단 인입압력과 비에너지소비량(SEC)을 탐색합니다. 실제 설비 제어와 연결되지 않습니다.</p>
+      <div class="hero-kicker">RO LENS · MANUFACTURING ANALYTICS PILOT</div>
+      <h1>해수담수화 운영 분석 플랫폼</h1>
+      <p>제조·유틸리티 운영팀이 도입 전에 확인해야 할 데이터 품질, 공정 성과, 모델 검토 큐를
+      한 화면에 연결합니다. 현재는 2021년 기록을 재생하는 읽기 전용 프로토타입이며 실제 설비 제어와 연결되지 않습니다.</p>
       <div class="badges">
         <span class="badge">● 연구용 데모</span>
         <span class="badge">2021 기록 데이터</span>
@@ -252,13 +265,113 @@ st.markdown(
 
 page = st.radio(
     "대시보드 메뉴",
-    ["운전 스냅샷", "기간 성과", "예측 실험실", "운영 인사이트", "데이터·모델 카드"],
+    ["파일럿 개요", "운전 스냅샷", "기간 성과", "예측 실험실", "운영 인사이트", "데이터·모델 카드"],
     horizontal=True,
     label_visibility="collapsed",
 )
 
 
-if page == "운전 스냅샷":
+if page == "파일럿 개요":
+    section(
+        "EXECUTIVE BRIEF",
+        "제조 운영 파일럿 한눈에 보기",
+        "현장 도입 전 의사결정에 필요한 숫자와 검증 경계를 한 화면에 고정합니다.",
+    )
+    st.info(
+        "이 화면은 과거 기록을 재생하는 분석 프로토타입입니다. 운영 시스템으로 승격하려면 "
+        "실시간 데이터 계약, 시간순 holdout 검증, 읽기 전용 shadow 운영을 먼저 통과해야 합니다."
+    )
+    brief_cols = st.columns(5)
+    brief_cols[0].metric("사용 가능 기록", f"{len(history):,}건")
+    brief_cols[1].metric("기록 기간", f"{(end_time - start_time).days + 1:,}일")
+    brief_cols[2].metric("정시 관측 비중", f"{profile.exact_hour_share:.1%}")
+    brief_cols[3].metric("압력 MAE", f"{model_diagnostics['pressure']['mae']:.2f} bar")
+    brief_cols[4].metric("SEC chained MAE", f"{model_diagnostics['sec_chain']['mae']:.3f} kWh/m³")
+
+    section(
+        "TRUST GATE",
+        "도입 검토 체크리스트",
+        "통과한 검증과 아직 조직 차원에서 보완해야 할 통제를 분리해 표시합니다.",
+    )
+    gate_view = pd.DataFrame(
+        [
+            ["데이터 무결성", "통과", f"{profile.usable_rows:,}건 정제 · 중복 {profile.duplicate_rows_removed:,}건 제거"],
+            ["모델 아티팩트", "통과", "manifest SHA-256 해시 검증 후 로드"],
+            ["시간순 독립 검증", "보완 필요", "학습 파이프라인과 holdout 결과가 저장소에 없음"],
+            ["실시간 설비 연결", "미연결", "센서·PLC·SCADA·유량 태그 미연동"],
+            ["운영 의사결정", "제한", "읽기 전용 연구용 분석 · 자동 제어 금지"],
+        ],
+        columns=["검토 항목", "현재 상태", "근거"],
+    )
+    st.dataframe(gate_view, width="stretch", hide_index=True)
+
+    review_col1, review_col2 = st.columns([1.15, 1])
+    with review_col1:
+        section(
+            "REVIEW QUEUE",
+            "먼저 볼 기록",
+            "모델과 기록의 차이가 큰 통계적 검토 후보입니다.",
+        )
+        st.metric("95백분위 검토 후보", f"{int(thresholds['watch_count']):,}건", f"전체의 {thresholds['watch_share_pct']:.1f}%")
+        top_review = watchlist[["timestamp", "pressure_error_bar", "sec_error_kwh_m3", "watch_reason"]].head(8).copy()
+        top_review["timestamp"] = top_review["timestamp"].dt.strftime("%m-%d %H:%M")
+        top_review = top_review.rename(
+            columns={
+                "timestamp": "시각",
+                "pressure_error_bar": "압력 차이(bar)",
+                "sec_error_kwh_m3": "SEC 차이(kWh/m³)",
+                "watch_reason": "검토 사유",
+            }
+        )
+        st.dataframe(
+            top_review.style.format({"압력 차이(bar)": "{:+.2f}", "SEC 차이(kWh/m³)": "{:+.3f}"}),
+            width="stretch",
+            hide_index=True,
+        )
+    with review_col2:
+        plot(
+            error_watch_figure(
+                history,
+                pressure_cutoff=float(thresholds["pressure_cutoff"]),
+                sec_cutoff=float(thresholds["sec_cutoff"]),
+            )
+        )
+
+    section(
+        "PILOT GATE",
+        "현장 도입을 위한 다음 세 단계",
+        "기능을 더 붙이기 전에 신뢰성과 운영 책임 경계를 먼저 닫는 순서입니다.",
+    )
+    st.markdown(
+        """
+        <div class="step-grid">
+          <div class="step-card"><div class="step-index">01 · DATA CONTRACT</div><h3>태그·단위·품질 플래그</h3><p>유량, 회수율, 염분/전도도, 막 차압과 함께 태그 사전·시간대·결측 규칙을 고정합니다.</p></div>
+          <div class="step-card"><div class="step-index">02 · MODEL VALIDATION</div><h3>시간순 검증과 드리프트</h3><p>과거→미래 holdout, 현장 기준선, 재학습 주기와 성능 저하 알림을 합의합니다.</p></div>
+          <div class="step-card"><div class="step-index">03 · CONTROLLED ROLLOUT</div><h3>읽기 전용 shadow 운영</h3><p>RBAC·감사 로그를 붙인 뒤 운영자 승인 전까지는 분석 결과를 제어 명령으로 사용하지 않습니다.</p></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    brief_export = pd.DataFrame(
+        [
+            ["usable_records", len(history), "건", "정제 후 고유 timestamp"],
+            ["exact_hour_share", profile.exact_hour_share * 100, "%", "분·초가 00인 기록 비중"],
+            ["pressure_mae", model_diagnostics["pressure"]["mae"], "bar", "전체 기록 적합도"],
+            ["sec_chain_mae", model_diagnostics["sec_chain"]["mae"], "kWh/m³", "압력 추정값을 연결한 전체 기록 적합도"],
+            ["review_queue_count", thresholds["watch_count"], "건", "오차 95백분위 이상 후보"],
+            ["production_readiness", "보완 필요", "", "실시간 연결·독립 검증·권한 통제 미완료"],
+        ],
+        columns=["metric", "value", "unit", "interpretation"],
+    )
+    st.download_button(
+        "파일럿 요약 CSV 받기",
+        brief_export.to_csv(index=False).encode("utf-8-sig"),
+        file_name="ro_lens_pilot_brief.csv",
+        mime="text/csv",
+    )
+
+
+elif page == "운전 스냅샷":
     section(
         "HISTORICAL REPLAY",
         "실제 존재하는 기록 시점만 탐색",
@@ -581,7 +694,6 @@ elif page == "운영 인사이트":
         "아래 후보는 각 오차의 95백분위 이상인 기록입니다. 통계적 검토 큐일 뿐 "
         "안전·품질 이상 판정이나 자동 운전 지시가 아닙니다."
     )
-    watchlist, thresholds = anomaly_watchlist(history)
     insight_cols = st.columns(4)
     insight_cols[0].metric("검토 후보", f"{int(thresholds['watch_count']):,}건")
     insight_cols[1].metric("전체 중 비중", f"{thresholds['watch_share_pct']:.1f}%")
@@ -730,6 +842,56 @@ else:
         hide_index=True,
     )
 
+    section(
+        "MODEL EXPLAINABILITY",
+        "모델이 참고한 신호",
+        "계수와 상대 중요도를 공개해 검토자가 결과를 역추적할 수 있게 합니다. 인과효과나 운전 권고가 아닙니다.",
+    )
+    explain_col1, explain_col2 = st.columns(2)
+    with explain_col1:
+        st.markdown("#### 압력 모델 · 방향성 계수")
+        pressure_explain = explainability["pressure"].rename(
+            columns={"feature": "입력 변수", "value": "계수"}
+        )
+        if pressure_explain.empty:
+            st.warning("저장 모델에 계수 메타데이터가 없어 표시할 수 없습니다.")
+        else:
+            plot(
+                feature_signal_figure(
+                    explainability["pressure"],
+                    title="입력 1단위 변화에 대한 선형 계수",
+                    value_label="계수 (bar / 입력 단위)",
+                    signed=True,
+                )
+            )
+            st.dataframe(
+                pressure_explain.style.format({"계수": "{:+.5f}"}),
+                width="stretch",
+                hide_index=True,
+            )
+        st.caption("계수의 크기는 입력 변수의 단위와 스케일에 영향을 받습니다.")
+    with explain_col2:
+        st.markdown("#### SEC 모델 · 상대 중요도")
+        sec_explain = explainability["sec"].sort_values("value", ascending=False).rename(
+            columns={"feature": "입력 변수", "value": "상대 중요도"}
+        )
+        if sec_explain.empty:
+            st.warning("저장 모델에 중요도 메타데이터가 없어 표시할 수 없습니다.")
+        else:
+            plot(
+                feature_signal_figure(
+                    explainability["sec"],
+                    title="랜덤포레스트 분할 기준 상대 중요도",
+                    value_label="상대 중요도",
+                )
+            )
+            st.dataframe(
+                sec_explain.style.format({"상대 중요도": "{:.4f}"}),
+                width="stretch",
+                hide_index=True,
+            )
+        st.caption("상대 중요도는 모델 내부 분할 기여도이며 변수의 인과효과를 뜻하지 않습니다.")
+
     section("LIMITATIONS", "사용 전에 알아야 할 점")
     st.warning(
         "모델을 재현할 학습 파이프라인과 독립 시간순 검증 결과가 저장소에 없습니다. "
@@ -762,3 +924,4 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+

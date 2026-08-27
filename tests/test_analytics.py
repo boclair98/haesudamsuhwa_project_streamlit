@@ -1,10 +1,12 @@
 import unittest
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
 
 from desalination.analytics import (
     anomaly_watchlist,
+    model_explainability,
     monthly_summary,
     percentile_rank,
     regression_metrics,
@@ -12,6 +14,22 @@ from desalination.analytics import (
 
 
 class AnalyticsTests(unittest.TestCase):
+    def test_model_explainability_exposes_signed_and_relative_signals(self):
+        pressure = SimpleNamespace(
+            feature_names_in_=np.array(["수온", "수소이온농도"]),
+            coef_=np.array([0.25, -0.08]),
+        )
+        sec = SimpleNamespace(
+            feature_names_in_=np.array(["총인", "탁도"]),
+            feature_importances_=np.array([0.7, 0.3]),
+        )
+
+        signals = model_explainability(pressure, sec)
+
+        self.assertListEqual(signals["pressure"]["feature"].tolist(), ["수온", "수소이온농도"])
+        self.assertAlmostEqual(float(signals["pressure"].loc[1, "value"]), -0.08)
+        self.assertAlmostEqual(float(signals["sec"]["value"].sum()), 1.0)
+
     def test_regression_metrics_are_exact_for_perfect_fit(self):
         metrics = regression_metrics([1, 2, 3], [1, 2, 3])
         self.assertEqual(metrics.mae, 0)
@@ -74,3 +92,4 @@ class AnalyticsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
