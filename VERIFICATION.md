@@ -31,6 +31,7 @@
 - 파일럿 개요에서 데이터 무결성·모델 아티팩트·실시간 연결 게이트와 검토 큐를 확인
 - 데이터·모델 카드에서 압력 계수와 SEC 상대 중요도 시각화 및 표를 확인
 - 운영 인사이트 탭에서 임계값·검토 후보·CSV 버튼을 확인
+- 운영 인사이트에서 검토 사유 필터와 표시 건수 조절, 필터 결과 CSV를 확인
 - public browser console error count: 0
 - historical date/time selectors use real recorded timestamps
 - monthly selector and sparse-month rendering work

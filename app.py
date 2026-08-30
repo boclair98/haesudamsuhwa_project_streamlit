@@ -723,6 +723,25 @@ elif page == "운영 인사이트":
         "상위 검토 후보",
         "모델과 기록의 차이가 큰 순서입니다. 원자료·센서 상태·운영 로그와 함께 확인하세요.",
     )
+    filter_col1, filter_col2 = st.columns([1.4, 1])
+    reason_options = sorted(watchlist["watch_reason"].dropna().unique().tolist())
+    with filter_col1:
+        selected_reasons = st.multiselect(
+            "검토 사유 필터",
+            reason_options,
+            default=reason_options,
+            help="압력 차이·SEC 차이 조합으로 표시할 후보를 좁힙니다. 기준 분위수는 바뀌지 않습니다.",
+        )
+    with filter_col2:
+        display_limit = st.slider(
+            "표시 건수",
+            min_value=10,
+            max_value=min(100, max(10, len(watchlist))),
+            value=min(40, max(10, len(watchlist))),
+            step=10,
+        )
+    filtered_watchlist = watchlist.loc[watchlist["watch_reason"].isin(selected_reasons)].copy()
+    st.caption(f"필터 결과 {len(filtered_watchlist):,}건 · 아래 표에는 상위 {min(display_limit, len(filtered_watchlist)):,}건 표시")
     review_columns = [
         "timestamp",
         "pressure_stage1_bar",
@@ -735,7 +754,7 @@ elif page == "운영 인사이트":
         "turbidity_ntu",
         "watch_reason",
     ]
-    review_view = watchlist[review_columns].head(40).copy()
+    review_view = filtered_watchlist[review_columns].head(display_limit).copy()
     review_view["timestamp"] = review_view["timestamp"].dt.strftime("%Y-%m-%d %H:%M")
     review_view = review_view.rename(
         columns={
@@ -768,7 +787,13 @@ elif page == "운영 인사이트":
         hide_index=True,
     )
     st.download_button(
-        "검토 후보 CSV 받기",
+        "필터 결과 CSV 받기",
+        filtered_watchlist.to_csv(index=False).encode("utf-8-sig"),
+        file_name="ro_model_record_watchlist_filtered_2021.csv",
+        mime="text/csv",
+    )
+    st.download_button(
+        "전체 검토 후보 CSV 받기",
         watchlist.to_csv(index=False).encode("utf-8-sig"),
         file_name="ro_model_record_watchlist_2021.csv",
         mime="text/csv",
